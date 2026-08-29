@@ -42,7 +42,16 @@ sudo apt-get install -y xvfb libgl1-mesa-dri mesa-utils libglu1-mesa
 client dies during shader loading with no useful error. `clientdevbridge doctor` checks for it
 explicitly.
 
-You also need a **JDK 21** (Minecraft 1.21 requires it) and **Node 20+**.
+You also need a **JDK** and **Node 20+**. Which JDK depends on the Minecraft version the mod
+targets — 1.21 needs 21, the 26 line needs 25 — and the mod's own `gradle.properties` states it as
+`java_version`.
+
+Install it where Gradle will find it, which is `JAVA_HOME`, **not** whichever `java` comes first on
+the PATH: the loader plugins check the JDK Gradle itself runs on, and Loom refuses to configure a
+Minecraft 26 project on Java 21 with an error that never mentions `JAVA_HOME`.
+`clientdevbridge doctor` reports the JDK Gradle will actually use and where it came from, and
+`clientdevbridge start` runs Gradle on an installed JDK that satisfies the project when the
+environment's own is too old, saying so when it does.
 
 ## Network allowlist
 
