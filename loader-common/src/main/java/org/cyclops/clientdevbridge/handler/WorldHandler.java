@@ -13,7 +13,6 @@ import org.cyclops.clientdevbridge.protocol.Json;
 import org.cyclops.clientdevbridge.protocol.Params;
 
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -62,7 +61,9 @@ public class WorldHandler {
 
         dispatcher.register("world.load", raw -> {
             String name = new Params(raw).getString("name");
-            return ClientThread.runOnTick(WorldControl::leave)
+            // Check the name before leaving: a typo must not cost the caller the world it is in.
+            return ClientThread.run(() -> WorldControl.requireExists(name))
+                    .thenCompose(ignored -> ClientThread.runOnTick(WorldControl::leave))
                     .thenCompose(ignored -> awaitOutOfWorld())
                     .thenCompose(ignored -> ClientThread.runOnTick(() -> WorldControl.load(name)))
                     .thenCompose(ignored -> awaitInWorld(name))
@@ -86,9 +87,13 @@ public class WorldHandler {
         dispatcher.register("world.command", raw -> {
             String command = new Params(raw).getString("command");
             return ClientThread.submit(() -> {
-                List<String> output = CommandRunner.run(command);
+                CommandRunner.Result outcome = CommandRunner.execute(command);
                 JsonObject result = Json.object();
-                result.add("output", Json.arrayOfStrings(output));
+                // Success is reported explicitly: a failing command still prints something, so
+                // output alone cannot tell a caller whether the scene was actually built.
+                result.addProperty("success", outcome.success());
+                result.addProperty("value", outcome.value());
+                result.add("output", Json.arrayOfStrings(outcome.output()));
                 return result;
             });
         });

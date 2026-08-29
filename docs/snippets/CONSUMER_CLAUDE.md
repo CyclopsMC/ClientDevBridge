@@ -53,6 +53,10 @@ clientdevbridge compare <name>             # check it; writes a readable diff PN
 
 ### Notes
 
+- `setblock`, `give` and `command` exit `1` when the game rejects them — chain scene setup with `&&`.
+- `inspect-gui` moves the player to bring the block into reach; teleport and look explicitly before
+  recording a golden image.
+- `--project` defaults to the current directory; pass it explicitly if your shell resets cwd.
 - **The same commands work on every Minecraft-version branch of this repository.** The CLI is
   version-agnostic; only the mod build it injects differs.
 - `clientdevbridge logs --level warn` for the game's log, `--gradle` for startup crashes.

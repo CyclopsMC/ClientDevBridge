@@ -24,10 +24,39 @@ import java.util.List;
 public class CommandRunner {
 
     /**
-     * @param command the command, with or without a leading slash
-     * @return every feedback message the command produced, in order
+     * The outcome of one command.
+     *
+     * Success is reported separately from the output because a failing command still prints
+     * something -- "Unknown block type ..." -- and a caller that only looks at the output cannot
+     * tell a built scene from a scene that was never built.
+     */
+    public record Result(boolean success, int value, List<String> output) {
+    }
+
+    /**
+     * Runs a command, keeping only its output. Prefer {@link #runChecked} where failure matters.
      */
     public static List<String> run(String command) {
+        return execute(command).output();
+    }
+
+    /**
+     * Runs a command and fails the request if the command itself failed.
+     */
+    public static Result runChecked(String command) {
+        Result result = execute(command);
+        if (!result.success()) {
+            throw RpcException.illegalState("The command '" + command + "' failed: "
+                    + (result.output().isEmpty() ? "no output" : String.join(" ", result.output())));
+        }
+        return result;
+    }
+
+    /**
+     * @param command the command, with or without a leading slash
+     * @return the command's success flag, result value, and feedback messages in order
+     */
+    public static Result execute(String command) {
         MinecraftServer server = requireServer();
         String normalised = command.startsWith("/") ? command.substring(1) : command;
         if (normalised.isBlank()) {
@@ -73,21 +102,17 @@ public class CommandRunner {
                     .withLevel(serverPlayer.serverLevel());
         }
 
-        server.getCommands().performPrefixedCommand(source, normalised);
-        return new ArrayList<>(output);
-    }
+        // Brigadier reports success through the source's result callback rather than a return
+        // value, so this is the only way to learn whether the command actually did anything.
+        boolean[] success = { false };
+        int[] value = { 0 };
+        source = source.withCallback((succeeded, result) -> {
+            success[0] = succeeded;
+            value[0] = result;
+        });
 
-    /**
-     * Runs a command and fails loudly if it produced no output, which for most commands means it
-     * did not do anything.
-     */
-    public static List<String> runExpectingOutput(String command) {
-        List<String> output = run(command);
-        if (output.isEmpty()) {
-            throw RpcException.illegalState("The command '" + command + "' produced no output, "
-                    + "which usually means it failed to parse or matched nothing.");
-        }
-        return output;
+        server.getCommands().performPrefixedCommand(source, normalised);
+        return new Result(success[0], value[0], new ArrayList<>(output));
     }
 
     public static MinecraftServer requireServer() {

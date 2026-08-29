@@ -8,6 +8,7 @@ import org.cyclops.clientdevbridge.protocol.RpcException;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Reads the main render target into a PNG.
@@ -27,9 +28,37 @@ public class FrameCapture {
     }
 
     /**
+     * The whole capture pipeline: grab the framebuffer, crop or rescale it, and PNG-encode it.
+     *
+     * This is a single adapter entry point on purpose. How a frame is read out of the GPU is one
+     * of the most version-churning things in Minecraft — it has been a synchronous call, and it
+     * has been a callback driven by a GPU buffer copy — so the handler must never see that shape.
+     * It sees a future, on every branch.
+     *
+     * @param region the pixel-space rectangle to keep, or null for the whole frame
+     * @param scale  a multiplier applied to the output size, or null for 1:1
+     */
+    public static CompletableFuture<Png> capture(@Nullable Region region, @Nullable Double scale) {
+        // Hop a frame first, so the buffer read was rendered after the request arrived.
+        return ClientThread.<NativeImage>submitAfterFrame(() -> transform(grab(), region, scale))
+                // PNG encoding is CPU work on an off-heap buffer, so it happens off the render thread.
+                .thenApply(image -> {
+                    int width = image.getWidth();
+                    int height = image.getHeight();
+                    return new Png(encodeAndClose(image), width, height);
+                });
+    }
+
+    /**
+     * An encoded frame.
+     */
+    public record Png(byte[] bytes, int width, int height) {
+    }
+
+    /**
      * Grabs the current framebuffer. Must be called on the render thread.
      */
-    public static NativeImage grab() {
+    static NativeImage grab() {
         RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
         return Screenshot.takeScreenshot(target);
     }
@@ -41,7 +70,7 @@ public class FrameCapture {
      * @param region the pixel-space rectangle to keep, or null for the whole frame
      * @param scale  a multiplier applied to the output size, or null for 1:1
      */
-    public static NativeImage transform(NativeImage source, @Nullable Region region, @Nullable Double scale) {
+    static NativeImage transform(NativeImage source, @Nullable Region region, @Nullable Double scale) {
         int sourceWidth = source.getWidth();
         int sourceHeight = source.getHeight();
 
@@ -92,7 +121,7 @@ public class FrameCapture {
     /**
      * Encodes to PNG bytes and releases the image. Safe to call off the render thread.
      */
-    public static byte[] encodeAndClose(NativeImage image) {
+    static byte[] encodeAndClose(NativeImage image) {
         try {
             return image.asByteArray();
         } catch (IOException e) {

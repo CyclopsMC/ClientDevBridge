@@ -14,3 +14,9 @@ accessible field net/minecraft/client/gui/screens/Screen renderables Ljava/util/
 
 # AbstractSliderButton's normalised position is the only thing that says where a slider is.
 accessible field net/minecraft/client/gui/components/AbstractSliderButton value D
+
+# Hover state is recomputed every frame from MouseHandler's own position, so synthetic mouse moves
+# have to write it directly. glfwSetCursorPos is ignored when the window is not focused, which is
+# always the case under Xvfb.
+accessible field net/minecraft/client/MouseHandler xpos D
+accessible field net/minecraft/client/MouseHandler ypos D

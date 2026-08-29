@@ -96,7 +96,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.load` | `{ name }` | `{ world }` |
 | `world.leave` | – | `{}` |
 | `world.list` | – | `{ worlds: [string] }` |
-| `world.command` | `{ command }` | `{ output: [string] }` |
+| `world.command` | `{ command }` | `{ success, value, output: [string] }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
 | `wait.ticks` | `{ ticks }` | `{ tick }` |
 | `wait.for` | `{ condition, value?, timeoutMs? }` | `{ met, condition, screenClass, inWorld }` |
@@ -106,6 +106,11 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 
 `wait.for` conditions: `screen` (value = simple or qualified class name), `noScreen`, `inWorld`,
 `outOfWorld`, `chunkLoaded` (value = `[x, y, z]`), `expr` (value = a Groovy expression).
+
+`world.command` reports `success` separately from `output` because a failing command still prints
+something ("Unknown block type ..."), so output alone cannot tell a built scene from one that was
+never built. It comes from Brigadier's result callback, which is the only place the outcome is
+available.
 
 `eval` and `wait.for expr` need `-Dclientdevbridge.eval=true` **and** a Groovy engine on the
 classpath. The mod reaches it through `javax.script`, so it is genuinely optional; the CLI's init
@@ -152,7 +157,9 @@ Rules:
 - `screen.children()` is walked, recursing into `ContainerEventHandler`s. `Renderable`s that are not
   `GuiEventListener`s are pure decoration and appear only when `includeHidden` is set.
 - Bounds come from `AbstractWidget`, then `GuiEventListener#getRectangle()`, then reflection on
-  conventional `x`/`y`/`width`/`height` fields, then `null`.
+  conventional `x`/`y`/`width`/`height` fields, then `null`. A component whose rectangle is empty
+  gets `extra.boundsUnknown` and a note rather than a claimed `0x0`: vanilla's recipe book is the
+  common case, and it exposes neither bounds nor children through the standard interfaces.
 - Depth is capped at 12 and the tree at 2000 nodes; `truncated` says when a cap was hit.
 - `path` is stable within a snapshot and is what `click --widget` consumes.
 
