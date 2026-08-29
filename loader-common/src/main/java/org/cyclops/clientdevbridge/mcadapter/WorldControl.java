@@ -95,9 +95,8 @@ public class WorldControl {
     public static void leave() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level != null) {
-            minecraft.level.disconnect();
+            minecraft.disconnectWithProgressScreen();
         }
-        minecraft.disconnect();
         minecraft.setScreen(null);
     }
 

@@ -84,7 +84,7 @@ public class VanillaExtractors {
         // Widget tooltips are attached rather than rendered inline, so they would otherwise be
         // invisible to a snapshot even though they are exactly what a caller is looking for.
         SnapshotExtractors.register(net.minecraft.client.gui.components.AbstractWidget.class, (widget, node) -> {
-            Tooltip tooltip = widget.getTooltip();
+            Tooltip tooltip = TooltipCapture.attachedTooltip(widget);
             if (tooltip != null) {
                 node.extra("tooltip", TooltipCapture.describe(tooltip));
             }

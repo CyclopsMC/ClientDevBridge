@@ -71,7 +71,7 @@ public class PlayerControl {
         if (slot < 0 || slot > 8) {
             throw RpcException.invalidParams("Parameter 'slot' must be a hotbar slot 0-8, but was " + slot);
         }
-        ClientState.requirePlayer().getInventory().selected = slot;
+        ClientState.requirePlayer().getInventory().setSelectedSlot(slot);
     }
 
     public static JsonObject inventory() {
@@ -83,7 +83,7 @@ public class PlayerControl {
         }
         JsonObject result = Json.object();
         result.add("slots", slots);
-        result.addProperty("selected", player.getInventory().selected);
+        result.addProperty("selected", player.getInventory().getSelectedSlot());
         result.add("carried", describeStack(-1, player.containerMenu.getCarried()));
         return result;
     }

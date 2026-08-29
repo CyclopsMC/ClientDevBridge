@@ -168,8 +168,7 @@ public class WidgetWalker {
                     abstractWidget.getWidth(), abstractWidget.getHeight()));
             Component message = abstractWidget.getMessage();
             node.message(message == null ? null : message.getString());
-            node.extra("component", message == null ? null : Component.Serializer.toJson(message,
-                    ClientState.registryAccess()));
+            node.extra("component", message == null ? null : componentJson(message));
             node.narration(narrationOf(abstractWidget));
             node.flags(abstractWidget.visible, abstractWidget.isActive(),
                     abstractWidget.isFocused(), abstractWidget.isHovered());
@@ -267,6 +266,23 @@ public class WidgetWalker {
         }
         String narration = builder.toString();
         return narration.isEmpty() ? null : narration;
+    }
+
+    /**
+     * The raw component tree, for callers that need styling rather than just the flattened text.
+     */
+    @Nullable
+    private static com.google.gson.JsonElement componentJson(Component component) {
+        try {
+            return net.minecraft.network.chat.ComponentSerialization.CODEC
+                    .encodeStart(net.minecraft.resources.RegistryOps.create(
+                            com.mojang.serialization.JsonOps.INSTANCE, ClientState.registryAccess()), component)
+                    .result()
+                    .orElse(null);
+        } catch (Throwable e) {
+            // Styling detail is a nicety; a component that will not serialise must not fail the snapshot.
+            return null;
+        }
     }
 
     @SuppressWarnings("unchecked")

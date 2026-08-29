@@ -70,8 +70,9 @@ public class TooltipCapture {
         }
 
         AbstractWidget widget = widgetAt(screen, x, y);
-        if (widget != null && widget.getTooltip() != null) {
-            result.add("lines", describe(widget.getTooltip()));
+        Tooltip attached = widget == null ? null : attachedTooltip(widget);
+        if (attached != null) {
+            result.add("lines", describe(attached));
             result.addProperty("source", "widget");
             result.addProperty("widget", widget.getClass().getName());
             result.addProperty("message", widget.getMessage() == null ? null : widget.getMessage().getString());
@@ -84,6 +85,14 @@ public class TooltipCapture {
             result.addProperty("widget", widget.getClass().getName());
         }
         return result;
+    }
+
+    /**
+     * The tooltip attached to a widget, which now lives behind a holder rather than a getter.
+     */
+    @Nullable
+    public static Tooltip attachedTooltip(AbstractWidget widget) {
+        return widget.tooltip.tooltip;
     }
 
     /**

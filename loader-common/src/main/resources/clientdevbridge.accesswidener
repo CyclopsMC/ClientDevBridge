@@ -20,3 +20,7 @@ accessible field net/minecraft/client/gui/components/AbstractSliderButton value 
 # always the case under Xvfb.
 accessible field net/minecraft/client/MouseHandler xpos D
 accessible field net/minecraft/client/MouseHandler ypos D
+
+# AbstractWidget#getTooltip is gone; the attached tooltip now lives in a private holder.
+accessible field net/minecraft/client/gui/components/AbstractWidget tooltip Lnet/minecraft/client/gui/components/WidgetTooltipHolder;
+accessible field net/minecraft/client/gui/components/WidgetTooltipHolder tooltip Lnet/minecraft/client/gui/components/Tooltip;

@@ -67,3 +67,27 @@ All notable changes to ClientDevBridge are documented here.
 - A widget that reports an empty rectangle is marked `boundsUnknown` rather than claimed to be
   `0x0`.
 - The CLI no longer prints `function toString()` for object and array `eval` results.
+
+## Minecraft 26.1.2 (`master-26-lts`)
+
+Upmerged from `master-1.21-lts`. Everything outside `mcadapter/`, the build files and the access
+widener compiled unchanged, which is what the layout exists to achieve.
+
+The 26 toolchain: Gradle 9.3, Java 25, ModDevGradle 2 for both `loader-common` and
+`loader-neoforge` (NeoGradle userdev is gone), Loom 1.15 under its new `net.fabricmc.fabric-loom`
+plugin id, and access wideners in the `official` namespace.
+
+The adapter changes the port needed:
+
+- Reading a frame is now an asynchronous texture-to-buffer copy with a callback, and `NativeImage`
+  no longer exposes PNG bytes, so encoding goes through a temporary file.
+- Input arrives as `MouseButtonEvent`, `KeyEvent` and `CharacterEvent` records rather than loose
+  parameters.
+- `LevelSettings` is a record without game rules; difficulty and hardcore moved into
+  `DifficultySettings`.
+- `GameRules` moved package; `AbstractScrollWidget` became `AbstractScrollArea`;
+  `AbstractWidget#getTooltip` is behind a holder; `Component.Serializer` became
+  `ComponentSerialization`; `Window#getWindow` became `handle()`; `Minecraft#resizeDisplay` became
+  `resizeGui()`; `Minecraft#getToasts` became `getToastManager()`; `Inventory#selected` is behind
+  accessors; command permissions take a `PermissionSet`; `ResourceKey#location` became
+  `identifier()`; and `GlUtil` gave way to the GPU device's implementation information.

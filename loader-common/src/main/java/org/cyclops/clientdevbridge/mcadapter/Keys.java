@@ -97,7 +97,7 @@ public class Keys {
         Options options = Minecraft.getInstance().options;
         InputConstants.Key key = toInputKey(keyCode);
         for (KeyMapping mapping : options.keyMappings) {
-            if (!mapping.isUnbound() && mapping.matches(key.getValue(), -1)) {
+            if (!mapping.isUnbound() && mapping.matches(new net.minecraft.client.input.KeyEvent(key.getValue(), -1, 0))) {
                 return mapping;
             }
         }

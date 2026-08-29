@@ -25,7 +25,7 @@ public class ClientState {
      */
     public static String glRenderer() {
         try {
-            return com.mojang.blaze3d.platform.GlUtil.getRenderer();
+            return com.mojang.blaze3d.systems.RenderSystem.getDevice().getImplementationInformation();
         } catch (Throwable e) {
             // Only reachable off the render thread or before the context exists; not worth failing over.
             return "unknown";
@@ -36,7 +36,7 @@ public class ClientState {
      * The running Minecraft version, e.g. {@code 1.21.1}.
      */
     public static String minecraftVersion() {
-        return net.minecraft.SharedConstants.getCurrentVersion().getName();
+        return net.minecraft.SharedConstants.getCurrentVersion().name();
     }
 
     /**
@@ -122,7 +122,7 @@ public class ClientState {
         status.addProperty("fps", minecraft.getFps());
 
         ClientLevel level = minecraft.level;
-        status.addProperty("dimension", level == null ? null : level.dimension().location().toString());
+        status.addProperty("dimension", level == null ? null : level.dimension().identifier().toString());
 
         LocalPlayer player = minecraft.player;
         if (player == null) {

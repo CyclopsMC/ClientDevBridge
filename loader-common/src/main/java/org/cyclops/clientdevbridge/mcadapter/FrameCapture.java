@@ -8,6 +8,8 @@ import org.cyclops.clientdevbridge.protocol.RpcException;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -40,9 +42,12 @@ public class FrameCapture {
      */
     public static CompletableFuture<Png> capture(@Nullable Region region, @Nullable Double scale) {
         // Hop a frame first, so the buffer read was rendered after the request arrived.
-        return ClientThread.<NativeImage>submitAfterFrame(() -> transform(grab(), region, scale))
-                // PNG encoding is CPU work on an off-heap buffer, so it happens off the render thread.
-                .thenApply(image -> {
+        return ClientThread.<CompletableFuture<NativeImage>>submitAfterFrame(FrameCapture::grab)
+                .thenCompose(grabbed -> grabbed)
+                // Cropping and PNG encoding are CPU work on an off-heap buffer, so they happen
+                // off the render thread.
+                .thenApply(raw -> {
+                    NativeImage image = transform(raw, region, scale);
                     int width = image.getWidth();
                     int height = image.getHeight();
                     return new Png(encodeAndClose(image), width, height);
@@ -56,11 +61,16 @@ public class FrameCapture {
     }
 
     /**
-     * Grabs the current framebuffer. Must be called on the render thread.
+     * Starts a framebuffer read. Must be called on the render thread.
+     *
+     * The read is asynchronous here: it is a texture-to-buffer copy whose callback fires once the
+     * GPU command encoder has run it, so the image is not available when this returns.
      */
-    static NativeImage grab() {
+    static CompletableFuture<NativeImage> grab() {
         RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
-        return Screenshot.takeScreenshot(target);
+        CompletableFuture<NativeImage> future = new CompletableFuture<>();
+        Screenshot.takeScreenshot(target, future::complete);
+        return future;
     }
 
     /**
@@ -122,13 +132,25 @@ public class FrameCapture {
      * Encodes to PNG bytes and releases the image. Safe to call off the render thread.
      */
     static byte[] encodeAndClose(NativeImage image) {
+        // NativeImage no longer exposes its PNG encoder as a byte array; writeToFile is the only
+        // public route to it, so the encode goes through a temporary file.
+        Path file = null;
         try {
-            return image.asByteArray();
+            file = Files.createTempFile("clientdevbridge-frame", ".png");
+            image.writeToFile(file);
+            return Files.readAllBytes(file);
         } catch (IOException e) {
             throw new RpcException(org.cyclops.clientdevbridge.protocol.RpcErrorCodes.INTERNAL_ERROR,
                     "Failed to PNG-encode the captured frame: " + e.getMessage());
         } finally {
             image.close();
+            if (file != null) {
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException ignored) {
+                    // A leftover temp file is not worth failing a screenshot over.
+                }
+            }
         }
     }
 

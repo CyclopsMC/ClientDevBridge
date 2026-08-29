@@ -33,10 +33,10 @@ public class WindowControl {
         Minecraft minecraft = Minecraft.getInstance();
         Window window = minecraft.getWindow();
 
-        GLFW.glfwSetWindowSize(window.getWindow(), width, height);
+        GLFW.glfwSetWindowSize(window.handle(), width, height);
         // GLFW delivers the resize asynchronously; asking Minecraft to re-read it now means the
         // very next frame is already at the new size, rather than one frame later.
-        minecraft.resizeDisplay();
+        minecraft.resizeGui();
 
         // The GUI scale has to be validated against the *new* window: the maximum scale is a
         // function of the size, so checking before the resize rejects scales that are about to
@@ -48,7 +48,7 @@ public class WindowControl {
                         + " at " + width + "x" + height + ", but was " + guiScale);
             }
             minecraft.options.guiScale().set(guiScale);
-            minecraft.resizeDisplay();
+            minecraft.resizeGui();
         }
     }
 

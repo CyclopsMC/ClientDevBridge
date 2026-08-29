@@ -93,13 +93,13 @@ public class CommandRunner {
 
         // Run as the player when there is one, so relative coordinates and selectors behave the way
         // they would if the command had been typed into chat.
-        CommandSourceStack source = server.createCommandSourceStack().withSource(collector).withMaximumPermission(4);
+        CommandSourceStack source = server.createCommandSourceStack().withSource(collector).withMaximumPermission(net.minecraft.server.permissions.LevelBasedPermissionSet.OWNER);
         ServerPlayer serverPlayer = serverPlayer(server);
         if (serverPlayer != null) {
             source = source.withEntity(serverPlayer)
                     .withPosition(serverPlayer.position())
                     .withRotation(serverPlayer.getRotationVector())
-                    .withLevel(serverPlayer.serverLevel());
+                    .withLevel(serverPlayer.level());
         }
 
         // Brigadier reports success through the source's result callback rather than a return

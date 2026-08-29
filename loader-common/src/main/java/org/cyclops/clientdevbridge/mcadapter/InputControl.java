@@ -5,6 +5,10 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import com.mojang.blaze3d.platform.Window;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import org.cyclops.clientdevbridge.protocol.RpcException;
 
 import javax.annotation.Nullable;
@@ -66,8 +70,9 @@ public class InputControl {
             return;
         }
         mouseMove(x, y);
-        screen.mouseClicked(x, y, button);
-        screen.mouseReleased(x, y, button);
+        MouseButtonEvent event = mouseEvent(x, y, button, 0);
+        screen.mouseClicked(event, false);
+        screen.mouseReleased(event);
     }
 
     public static void mouseDrag(double fromX, double fromY, double toX, double toY, int button, int steps) {
@@ -76,7 +81,7 @@ public class InputControl {
             throw RpcException.invalidParams("Parameter 'steps' must be at least 1, but was " + steps);
         }
         mouseMove(fromX, fromY);
-        screen.mouseClicked(fromX, fromY, button);
+        screen.mouseClicked(mouseEvent(fromX, fromY, button, 0), false);
 
         double previousX = fromX;
         double previousY = fromY;
@@ -84,13 +89,13 @@ public class InputControl {
             double progress = (double) step / steps;
             double x = fromX + (toX - fromX) * progress;
             double y = fromY + (toY - fromY) * progress;
-            screen.mouseDragged(x, y, button, x - previousX, y - previousY);
+            screen.mouseDragged(mouseEvent(x, y, button, 0), x - previousX, y - previousY);
             previousX = x;
             previousY = y;
         }
 
         mouseMove(toX, toY);
-        screen.mouseReleased(toX, toY, button);
+        screen.mouseReleased(mouseEvent(toX, toY, button, 0));
     }
 
     public static void scroll(double x, double y, double deltaX, double deltaY) {
@@ -105,12 +110,13 @@ public class InputControl {
     public static void key(int keyCode, String action, int modifiers) {
         Screen screen = ClientState.screen();
         if (screen != null) {
+            KeyEvent event = new KeyEvent(keyCode, -1, modifiers);
             switch (action) {
-                case "press" -> screen.keyPressed(keyCode, -1, modifiers);
-                case "release" -> screen.keyReleased(keyCode, -1, modifiers);
+                case "press" -> screen.keyPressed(event);
+                case "release" -> screen.keyReleased(event);
                 default -> {
-                    screen.keyPressed(keyCode, -1, modifiers);
-                    screen.keyReleased(keyCode, -1, modifiers);
+                    screen.keyPressed(event);
+                    screen.keyReleased(event);
                 }
             }
             return;
@@ -143,11 +149,14 @@ public class InputControl {
 
     public static void type(String text) {
         Screen screen = requireScreenFor("typing");
-        text.codePoints().forEach(codePoint -> {
-            for (char character : Character.toChars(codePoint)) {
-                screen.charTyped(character, 0);
-            }
-        });
+        text.codePoints().forEach(codePoint -> screen.charTyped(new CharacterEvent(codePoint)));
+    }
+
+    /**
+     * Input arrives as event records now, and a synthetic one needs no modifiers of its own.
+     */
+    private static MouseButtonEvent mouseEvent(double x, double y, int button, int modifiers) {
+        return new MouseButtonEvent(x, y, new MouseButtonInfo(button, modifiers));
     }
 
     private static Screen requireScreenFor(String what) {
