@@ -186,11 +186,18 @@ public class WorldControl {
     /**
      * Opens an existing world by its save folder name.
      */
-    public static void load(String name) {
+    /**
+     * Fails with the list of real world names if this one does not exist.
+     */
+    public static void requireExists(String name) {
         if (!exists(name)) {
             throw RpcException.invalidParams("There is no world called '" + name + "'. Existing worlds: "
                     + String.join(", ", listWorlds()));
         }
+    }
+
+    public static void load(String name) {
+        requireExists(name);
         Minecraft.getInstance().createWorldOpenFlows().openWorld(name, () ->
                 ClientDevBridge.LOGGER.warn("Failed to open world {}", name));
     }

@@ -178,8 +178,20 @@ public class WidgetWalker {
 
         if (widget instanceof GuiEventListener listener) {
             ScreenRectangle rectangle = listener.getRectangle();
-            node.bounds(new SnapshotNode.Bounds(rectangle.left(), rectangle.top(),
-                    rectangle.width(), rectangle.height()));
+            if (rectangle.width() > 0 && rectangle.height() > 0) {
+                node.bounds(new SnapshotNode.Bounds(rectangle.left(), rectangle.top(),
+                        rectangle.width(), rectangle.height()));
+            } else {
+                // A component that reports no rectangle is not introspectable through the standard
+                // interfaces -- vanilla's recipe book is the common example. Claiming it is 0x0
+                // would assert something false about a thing that is plainly on screen; saying
+                // nothing about its bounds, and why, is more honest and more useful.
+                node.bounds(reflectBounds(widget));
+                node.extra("boundsUnknown", true);
+                node.extra("note", "This component reports no rectangle, so its position and its "
+                        + "own children are not visible to the snapshot. Read a screenshot to see it, "
+                        + "or click it by coordinate.");
+            }
             node.flags(true, true, listener.isFocused(), false);
             return;
         }

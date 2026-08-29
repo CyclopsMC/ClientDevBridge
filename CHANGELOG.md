@@ -52,3 +52,18 @@ All notable changes to ClientDevBridge are documented here.
 - `scripts/e2e.sh`, running the whole scenario against a real client on both loaders.
 - CI: build and publish, the end-to-end suite on both loaders, and a guard that fails an
   unannounced `PROTOCOL_VERSION` change.
+
+### Fixes from independent validation (see `validation/phase-1-6.md`)
+
+- `world.command` now returns `success` and `value` alongside `output`, so a caller can tell a
+  built scene from one that was never built; `setblock`, `give` and `command` exit non-zero when the
+  game rejects them. Additive, so the protocol version is unchanged.
+- `input.mouseMove` writes `MouseHandler`'s position directly instead of asking GLFW to move the
+  cursor, which is ignored while the window is unfocused — as it always is under a virtual display.
+  Hover highlights, hovered slots and rendered tooltips now follow synthetic mouse moves.
+- `status` and `stop` probe the bridge port when no session is recorded, so an orphaned client is
+  reported with its pid instead of being called "not running".
+- `world.load` validates the world name before leaving the current world.
+- A widget that reports an empty rectangle is marked `boundsUnknown` rather than claimed to be
+  `0x0`.
+- The CLI no longer prints `function toString()` for object and array `eval` results.

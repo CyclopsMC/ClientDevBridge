@@ -116,6 +116,14 @@ Add `--json` to any command for the raw result.
 ## Things to remember
 
 - Screenshots are **file paths**, never inline data. Open them.
+- **`--project` defaults to the current directory.** If your shell resets cwd between commands, pass
+  `--project <dir>` on every invocation.
+- **`setblock`/`give`/`command` exit `1` when the game rejects them**, so chain scene setup with
+  `&&` rather than assuming it worked.
+- **`inspect-gui` and `open-gui` move the player** to bring the block into reach; teleport and look
+  explicitly before recording a golden.
+- Prefer `/root/children[N]` paths over labels for anything clicked twice: many vanilla widgets fall
+  back to narration text that changes with their state.
 - The same commands work on every Minecraft-version branch of a mod — the CLI is version-agnostic.
 - One client per project directory; use `--port` and `--project` for more.
 - Full reference: `docs/AGENT_WORKFLOW.md` and `docs/PROTOCOL.md` in the ClientDevBridge repository.

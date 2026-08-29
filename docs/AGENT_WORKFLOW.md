@@ -39,6 +39,11 @@ clientdevbridge inspect-gui 0 4 2
 `inspect-gui` is the composite you will reach for most: it right-clicks the block, waits for the
 screen, prints the outline, and writes a screenshot whose path it prints on the last line.
 
+**It moves the player.** To right-click a block the server has to consider it in reach, so
+`inspect-gui` and `open-gui` teleport the player next to it and look at it (pass `--no-approach` to
+suppress that and position yourself). This matters for golden images: always `teleport` and `look`
+explicitly before `compare --update`, or your golden will not be reproducible.
+
 ```
 YourScreen  "Your Machine"
 gui 427x240 @ scale 2, window 854x480px, mouse at 0,0
@@ -53,17 +58,32 @@ container YourMenu at (125,37) 176x166, 46 slots (1 filled)
 **Open that path with your file-reading tool.** Screenshots are never printed as base64 — the path
 is the contract.
 
+Two things the outline deliberately leaves out:
+
+- **Empty container slots**, unless they are hovered — a 46-slot screen would otherwise be 45 lines
+  of nothing. Slot geometry is a regular grid from the ones that are shown; or use `--json`, which
+  lists every slot.
+- **Components that report no rectangle of their own.** Vanilla's recipe book is the common case:
+  it appears as one node marked `bounds unknown`, and its own widgets are not reachable. Read a
+  screenshot to see it, and click it by coordinate.
+
 Every number in the outline is in GUI space, which is exactly what the input commands take, so you
 can feed them straight back:
 
 ```bash
 clientdevbridge click --widget "Apply"          # by label
-clientdevbridge click --widget "/root/children[3]"   # by path, when a label is ambiguous
+clientdevbridge click --widget "/root/children[3]"   # by path -- prefer this, see below
 clientdevbridge click --at 312,208              # by coordinate
 clientdevbridge tooltip --at 133,45             # what does that slot say?
 clientdevbridge type "hello"                    # into the focused widget
 clientdevbridge key ESCAPE
 ```
+
+**Prefer paths over labels for anything you click more than once.** Many vanilla widgets have no
+real label and fall back to their narration, which *changes with their state* — the recipe-book
+button reads `button Left click to activate` until it is focused and `button Press Enter to
+activate` afterwards. A label that matched before a click may not match after it. Paths are stable
+within a screen.
 
 `find` is the quick way to locate something on a busy screen:
 
@@ -74,8 +94,9 @@ clientdevbridge find "Apply" --type Button
 ## Setting up a scene
 
 `world-reset` deletes and regenerates a creative superflat world with time, weather, mobs and
-random ticks all switched off, a stone platform under the spawn, and the player at `0, 4, 0` facing
-north. It is the same world every time, which is what makes screenshots comparable.
+random ticks all switched off, a stone platform under the spawn, and the player at `0, 4, 0` with
+yaw 0 — which faces **+Z (south)**, so the block at `0, 4, 2` used in every example here is
+straight ahead. It is the same world every time, which is what makes screenshots comparable.
 
 ```bash
 clientdevbridge world-reset
@@ -95,6 +116,14 @@ repository and use `world-reset --template <name>`.
 clientdevbridge resize --width 854 --height 480 --gui-scale 2   # pin the frame
 clientdevbridge compare my-scene --update                        # record
 clientdevbridge compare my-scene                                 # check; non-zero exit on mismatch
+```
+
+Pin the camera as well as the frame — `world-reset` alone is not enough if anything since then has
+moved the player (`inspect-gui` does):
+
+```bash
+clientdevbridge teleport 0 5 6 --yaw 180 --pitch 20
+clientdevbridge wait --ticks 10
 ```
 
 Golden images live in `.clientdevbridge/golden/<renderer>/`, which **is** meant to be committed.
@@ -153,3 +182,9 @@ Read the error text. It is written to say what to do next, not just what went wr
   script than the human-readable output.
 - **One client per project directory.** Use `--port` and `--project` to run more than one.
 - **`.clientdevbridge/` is added to your `.gitignore` automatically**, except `golden/`.
+- **`--project` defaults to the current directory.** If your shell resets its working directory
+  between commands — many agent harnesses do — pass `--project <dir>` explicitly every time, or you
+  will silently target a different checkout.
+- **Check exit codes on scene setup.** `setblock`, `give` and `command` exit `1` when the game
+  rejected the command, so `setblock ... && inspect-gui ...` will stop rather than inspect a scene
+  that was never built.

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import com.mojang.blaze3d.platform.Window;
 import org.cyclops.clientdevbridge.protocol.RpcException;
 
 import javax.annotation.Nullable;
@@ -37,6 +38,17 @@ public class InputControl {
     public static void mouseMove(double x, double y) {
         mouseX = x;
         mouseY = y;
+
+        // Minecraft recomputes hover state every frame from MouseHandler's own position, so it has
+        // to be written directly. Asking GLFW to move the cursor does not work: it is ignored while
+        // the window is not focused, which it never is under a virtual display. Without this the
+        // hovered slot, the hover highlight and any rendered tooltip keep tracking wherever the
+        // pointer physically is, and a screenshot shows that rather than what was asked for.
+        Minecraft minecraft = Minecraft.getInstance();
+        Window window = minecraft.getWindow();
+        minecraft.mouseHandler.xpos = x * (double) window.getScreenWidth() / window.getGuiScaledWidth();
+        minecraft.mouseHandler.ypos = y * (double) window.getScreenHeight() / window.getGuiScaledHeight();
+
         Screen screen = ClientState.screen();
         if (screen != null) {
             screen.mouseMoved(x, y);
