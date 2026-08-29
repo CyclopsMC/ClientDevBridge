@@ -67,3 +67,23 @@ All notable changes to ClientDevBridge are documented here.
 - A widget that reports an empty rectangle is marked `boundsUnknown` rather than claimed to be
   `0x0`.
 - The CLI no longer prints `function toString()` for object and array `eval` results.
+
+### Fixes found by porting forwards
+
+Everything here was found by driving a newer Minecraft version and fixed on this branch first, as
+the upmerge rule asks.
+
+- No handler, protocol or snapshot file names a version-sensitive Minecraft member any more.
+  `WorldHandler`, `WaitHandler` and `EvalHandler` were reaching into `Minecraft` directly;
+  `ClientState` grew `isWorldReadyAt`, `isChunkLoaded`, `scriptBindings` and `vanillaClassLoader`,
+  and they go through those. Two of the Minecraft 26.2 compile errors landed in `handler/`, which
+  the layout exists to prevent.
+- `screen.open` waits for its approach teleport to actually land instead of giving the round trip
+  a fixed five ticks. Right after a world is created the integrated server has plenty else to do,
+  and the interaction was silently rejected as out of reach.
+- `status` reports `gameDir`. Which directory the client runs in is decided by the Gradle plugin
+  rather than by the loader, so the CLI cannot know it before launch; this is how it checks the
+  guess it pinned `options.txt` into.
+- CI fails when the access widener exists and `fabric.mod.json` does not declare it. That
+  combination has no runtime effect and nothing about the build says so — the mod loads, and the
+  first sign is an `IllegalAccessError` from whichever widened field a caller reaches first.
