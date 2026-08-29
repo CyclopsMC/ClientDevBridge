@@ -16,12 +16,24 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'microsoft'
-          java-version: 21
+          java-version: 25
       - name: 'Setup Gradle'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: wrapper
           cache-read-only: false
+      - name: 'Check that Fabric declares the access widener'
+        # A Fabric access widener has no runtime effect unless fabric.mod.json points at it, and
+        # nothing about the build says so: the mod loads, and the first sign is an
+        # IllegalAccessError from whichever widened field a caller reaches first.
+        run: |
+          AW=loader-common/src/main/resources/clientdevbridge.accesswidener
+          MOD_JSON=loader-fabric/src/main/resources/fabric.mod.json
+          if [[ -f "$AW" ]] && ! grep -q '"accessWidener"' "$MOD_JSON"; then
+            echo "::error file=$MOD_JSON::$AW exists but $MOD_JSON does not declare it."
+            echo '::error::Add: "accessWidener": "${mod_id}.accesswidener"'
+            exit 1
+          fi
       - name: 'Mark tag as release'
         if: startsWith(github.ref, 'refs/tags/')
         run: echo "RELEASE=true" >> $GITHUB_ENV
@@ -61,7 +73,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'microsoft'
-          java-version: 21
+          java-version: 25
       - name: 'Setup Gradle'
         uses: gradle/actions/setup-gradle@v4
         with:

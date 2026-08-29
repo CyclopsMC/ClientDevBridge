@@ -16,6 +16,8 @@
   "license": "${license}",
 
   "environment": "client",
+
+  "accessWidener": "${mod_id}.accesswidener",
   "entrypoints": {
     "client": [
       "org.cyclops.clientdevbridge.ClientDevBridgeFabric"

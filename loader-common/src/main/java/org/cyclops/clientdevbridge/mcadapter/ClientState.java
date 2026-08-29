@@ -120,6 +120,10 @@ public class ClientState {
         status.addProperty("screenClass", screenClass());
         status.addProperty("tick", tick);
         status.addProperty("fps", minecraft.getFps());
+        // The run directory the game actually chose. Which one that is depends on the Gradle
+        // plugin, not on the loader, so the CLI cannot know it up front: it pins the determinism
+        // options into its best guess before launch and corrects itself against this afterwards.
+        status.addProperty("gameDir", minecraft.gameDirectory.toPath().toAbsolutePath().normalize().toString());
 
         ClientLevel level = minecraft.level;
         status.addProperty("dimension", level == null ? null : level.dimension().identifier().toString());
