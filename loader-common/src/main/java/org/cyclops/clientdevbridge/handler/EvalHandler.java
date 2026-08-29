@@ -1,9 +1,9 @@
 package org.cyclops.clientdevbridge.handler;
 
 import com.google.gson.JsonObject;
-import net.minecraft.client.Minecraft;
 import org.cyclops.clientdevbridge.ClientDevBridge;
 import org.cyclops.clientdevbridge.Reference;
+import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import org.cyclops.clientdevbridge.protocol.Json;
@@ -44,7 +44,7 @@ public class EvalHandler {
         java.util.List<ClassLoader> loaders = new java.util.ArrayList<>();
         loaders.add(EvalHandler.class.getClassLoader());
         loaders.add(Thread.currentThread().getContextClassLoader());
-        loaders.add(Minecraft.class.getClassLoader());
+        loaders.add(ClientState.vanillaClassLoader());
         loaders.add(ClassLoader.getSystemClassLoader());
         loaders.add(ScriptEngineManager.class.getClassLoader());
         return loaders;
@@ -99,13 +99,9 @@ public class EvalHandler {
     private static Object evaluate(String code, StringWriter out) {
         ScriptEngine engine = requireEngine();
         Bindings bindings = engine.createBindings();
-        Minecraft minecraft = Minecraft.getInstance();
-        bindings.put("mc", minecraft);
-        bindings.put("player", minecraft.player);
-        bindings.put("level", minecraft.level);
-        bindings.put("screen", minecraft.screen);
-        bindings.put("window", minecraft.getWindow());
-        bindings.put("server", minecraft.getSingleplayerServer());
+        for (java.util.Map.Entry<String, Object> binding : ClientState.scriptBindings().entrySet()) {
+            bindings.put(binding.getKey(), binding.getValue());
+        }
 
         ScriptContext context = engine.getContext();
         context.setBindings(bindings, ScriptContext.ENGINE_SCOPE);

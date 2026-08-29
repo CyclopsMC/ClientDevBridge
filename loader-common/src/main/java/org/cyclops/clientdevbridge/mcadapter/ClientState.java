@@ -110,6 +110,56 @@ public class ClientState {
     }
 
     /**
+     * Whether the chunk containing a position is loaded on the client.
+     */
+    public static boolean isChunkLoaded(int x, int y, int z) {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level != null && minecraft.level.isLoaded(new net.minecraft.core.BlockPos(x, y, z));
+    }
+
+    /**
+     * A class loader that can see Minecraft's own dependencies, which is where the {@code eval}
+     * escape hatch has to look for a script engine.
+     */
+    public static ClassLoader vanillaClassLoader() {
+        return Minecraft.class.getClassLoader();
+    }
+
+    /**
+     * Whether a world is not merely joined but ready to be looked at: the integrated server is up,
+     * the loading screen is gone, and the given position is in a loaded chunk.
+     *
+     * All three matter to a screenshot. A client that has joined but is still showing "Loading
+     * terrain" renders something, and it is not the world.
+     */
+    public static boolean isWorldReadyAt(int x, int y, int z) {
+        Minecraft minecraft = Minecraft.getInstance();
+        return inWorld()
+                && minecraft.getSingleplayerServer() != null
+                && screen() == null
+                && minecraft.level != null
+                && minecraft.level.isLoaded(new net.minecraft.core.BlockPos(x, y, z));
+    }
+
+    /**
+     * The vanilla objects the {@code eval} escape hatch exposes to a script.
+     *
+     * They live here rather than in the handler because they are vanilla types, and every one of
+     * them has been reached through a different accessor at some point in Minecraft's history.
+     */
+    public static java.util.Map<String, Object> scriptBindings() {
+        Minecraft minecraft = Minecraft.getInstance();
+        java.util.Map<String, Object> bindings = new java.util.LinkedHashMap<>();
+        bindings.put("mc", minecraft);
+        bindings.put("player", minecraft.player);
+        bindings.put("level", minecraft.level);
+        bindings.put("screen", screen());
+        bindings.put("window", minecraft.getWindow());
+        bindings.put("server", minecraft.getSingleplayerServer());
+        return bindings;
+    }
+
+    /**
      * The {@code status} result: cheap enough to poll constantly.
      */
     public static JsonObject status(long tick) {
