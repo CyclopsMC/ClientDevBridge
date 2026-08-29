@@ -2,7 +2,7 @@
 
 plugins {
     id 'multiloader-loader'
-    id 'net.neoforged.gradle.userdev'
+    id 'net.neoforged.moddev'
 }
 
 // All jar files from this folder will be added automatically as runtime mod dependencies (inspired by AE2's build.gradle)
@@ -16,8 +16,6 @@ repositories {
 }
 
 dependencies {
-    implementation "net.neoforged:neoforge:${neoforge_version}"
-
     // Locally sourced extra mods for runtime (i.e. testing)
     for (extraModJar in fileTree(dir: extraModsDir, include: '*.jar')) {
         def basename = extraModJar.name.substring(0, extraModJar.name.length() - ".jar".length())
@@ -29,32 +27,28 @@ dependencies {
     }
 }
 
-minecraft {
+neoForge {
+    version = "${neoforge_version}"
+
     // Automatically enable neoforge AccessTransformers if the file exists
     def at = project(':loader-common').file('src/main/resources/META-INF/accesstransformer.cfg')
     if (at.exists()) {
-        accessTransformers {
-            file(at.absolutePath)
+        accessTransformers = [ at.absolutePath ]
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
         }
     }
-}
 
-subsystems {
-    parchment {
-        minecraftVersion = "${parchment_minecraft_version}"
-        mappingsVersion = "${parchment_version}"
-    }
-}
-
-runs {
-    configureEach {
-        modSource project.sourceSets.main
-    }
-
-    client {
-    }
-
-    server {
-        programArgument '--nogui'
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
     }
 }

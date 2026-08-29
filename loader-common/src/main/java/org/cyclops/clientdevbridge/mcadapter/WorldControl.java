@@ -1,10 +1,9 @@
 package org.cyclops.clientdevbridge.mcadapter;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
 import net.minecraft.world.level.WorldDataConfiguration;
@@ -157,13 +156,13 @@ public class WorldControl {
      */
     public static void createSuperflat(String name) {
         Minecraft minecraft = Minecraft.getInstance();
+        // Difficulty and hardcore moved into DifficultySettings, and game rules are no longer part
+        // of LevelSettings at all; the bridge sets them through commands once the world is up.
         LevelSettings settings = new LevelSettings(
                 name,
                 GameType.CREATIVE,
-                false,
-                Difficulty.PEACEFUL,
+                new LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false),
                 true, // Cheats on: everything the bridge does with the world goes through commands.
-                new GameRules(),
                 WorldDataConfiguration.DEFAULT);
         WorldOptions options = new WorldOptions(SEED, false, false);
 
@@ -175,10 +174,10 @@ public class WorldControl {
                 null);
     }
 
-    private static net.minecraft.world.level.levelgen.WorldDimensions flatDimensions(RegistryAccess registryAccess) {
-        return registryAccess
-                .registryOrThrow(Registries.WORLD_PRESET)
-                .getHolderOrThrow(WorldPresets.FLAT)
+    private static net.minecraft.world.level.levelgen.WorldDimensions flatDimensions(HolderLookup.Provider registries) {
+        return registries
+                .lookupOrThrow(Registries.WORLD_PRESET)
+                .getOrThrow(WorldPresets.FLAT)
                 .value()
                 .createWorldDimensions();
     }

@@ -1,6 +1,6 @@
 package org.cyclops.clientdevbridge.mcadapter;
 
-import net.minecraft.client.gui.components.AbstractScrollWidget;
+import net.minecraft.client.gui.components.AbstractScrollArea;
 import net.minecraft.client.gui.components.AbstractSelectionList;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
@@ -59,15 +59,17 @@ public class VanillaExtractors {
             node.extra("kind", "selectionList");
             node.extra("entryCount", list.children().size());
             node.extra("rowWidth", list.getRowWidth());
-            node.extra("scrollAmount", list.getScrollAmount());
-            node.extra("maxScroll", list.getMaxScroll());
             Object selected = list.getSelected();
             node.extra("selected", selected == null ? null : String.valueOf(selected));
         });
 
-        SnapshotExtractors.register(AbstractScrollWidget.class, (widget, node) -> {
-            node.extra("kind", "scrollWidget");
+        // AbstractScrollWidget became AbstractScrollArea, and the scroll accessors lost their
+        // get- prefixes. AbstractSelectionList now inherits its scrolling from here too.
+        SnapshotExtractors.register(AbstractScrollArea.class, (widget, node) -> {
+            node.extra("kind", "scrollArea");
             node.extra("scrollbarWidth", widget.scrollbarWidth());
+            node.extra("scrollAmount", widget.scrollAmount());
+            node.extra("maxScroll", widget.maxScrollAmount());
         });
 
         SnapshotExtractors.register(StringWidget.class, (widget, node) ->

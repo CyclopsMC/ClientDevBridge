@@ -1,4 +1,4 @@
-accessWidener v1 named
+accessWidener v1 official
 
 # AbstractContainerScreen's layout and hover state are what makes a container snapshot useful:
 # without them a caller cannot relate a slot index to a position on the screenshot.
