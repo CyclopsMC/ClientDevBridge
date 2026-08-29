@@ -22,7 +22,7 @@ import org.cyclops.clientdevbridge.protocol.RpcException;
 public class ScreenControl {
 
     public static void close() {
-        Minecraft.getInstance().setScreen(null);
+        Minecraft.getInstance().setScreenAndShow(null);
     }
 
     /**

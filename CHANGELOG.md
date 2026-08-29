@@ -68,6 +68,22 @@ All notable changes to ClientDevBridge are documented here.
   `0x0`.
 - The CLI no longer prints `function toString()` for object and array `eval` results.
 
+## Minecraft 26.2 (`master-26`)
+
+Upmerged from `master-26-lts`. The toolchain is unchanged; the client is not.
+
+26.2 moved the screen, the overlay and the toasts off `Minecraft` and onto `Minecraft.gui`
+(`net.minecraft.client.gui.Gui`), so `minecraft.screen` is `minecraft.gui.screen()`,
+`setScreen` is `setScreenAndShow`, `getOverlay()` is `gui.overlay()` and `getToastManager()`
+is `gui.toastManager()`. The main render target moved to `gameRenderer.mainRenderTarget()`, and
+the GL renderer string is now `RenderSystem.getDevice().getDeviceInfo().name()`.
+
+Two of those renames landed outside `mcadapter/` — `WorldHandler` and `EvalHandler` were reaching
+into `Minecraft` themselves — which is the boundary failing, not the port. `ClientState` grew
+`isWorldReadyAt`, `isChunkLoaded`, `scriptBindings` and `vanillaClassLoader`, the handlers now go
+through them, and the fix was made on `master-1.21-lts` first and upmerged, as the rule says. No
+handler, protocol or CLI file contains a version-sensitive Minecraft call any more.
+
 ## Minecraft 26.1.2 (`master-26-lts`)
 
 Upmerged from `master-1.21-lts`. Everything outside `mcadapter/`, the build files and the access

@@ -67,7 +67,7 @@ public class FrameCapture {
      * GPU command encoder has run it, so the image is not available when this returns.
      */
     static CompletableFuture<NativeImage> grab() {
-        RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         CompletableFuture<NativeImage> future = new CompletableFuture<>();
         Screenshot.takeScreenshot(target, future::complete);
         return future;

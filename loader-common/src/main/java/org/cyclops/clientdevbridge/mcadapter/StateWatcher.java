@@ -38,9 +38,10 @@ public class StateWatcher {
         // Toasts fade in and out over several seconds, so anything on screen while one is showing
         // is not reproducible. Clearing them every tick keeps them from ever being drawn.
         if (this.suppressToasts) {
-            minecraft.getToastManager().clear();
+            minecraft.gui.toastManager().clear();
         }
-        String screenClass = minecraft.screen == null ? null : minecraft.screen.getClass().getName();
+        net.minecraft.client.gui.screens.Screen screen = ClientState.screen();
+        String screenClass = screen == null ? null : screen.getClass().getName();
         boolean inWorld = minecraft.level != null && minecraft.player != null;
 
         if (!this.primed) {
@@ -54,8 +55,8 @@ public class StateWatcher {
             JsonObject params = Json.object();
             params.addProperty("screenClass", screenClass);
             params.addProperty("previousScreenClass", this.lastScreenClass);
-            if (minecraft.screen != null) {
-                params.addProperty("title", minecraft.screen.getTitle().getString());
+            if (screen != null) {
+                params.addProperty("title", screen.getTitle().getString());
             }
             this.lastScreenClass = screenClass;
             this.notify.accept("screen.changed", params);

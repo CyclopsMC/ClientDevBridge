@@ -97,7 +97,7 @@ public class WorldControl {
         if (minecraft.level != null) {
             minecraft.disconnectWithProgressScreen();
         }
-        minecraft.setScreen(null);
+        minecraft.setScreenAndShow(null);
     }
 
     /**

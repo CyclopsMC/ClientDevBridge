@@ -25,7 +25,7 @@ public class ClientState {
      */
     public static String glRenderer() {
         try {
-            return com.mojang.blaze3d.systems.RenderSystem.getDevice().getImplementationInformation();
+            return com.mojang.blaze3d.systems.RenderSystem.getDevice().getDeviceInfo().name();
         } catch (Throwable e) {
             // Only reachable off the render thread or before the context exists; not worth failing over.
             return "unknown";
@@ -53,7 +53,7 @@ public class ClientState {
 
     @Nullable
     public static Screen screen() {
-        return Minecraft.getInstance().screen;
+        return Minecraft.getInstance().gui.screen();
     }
 
     @Nullable
@@ -72,7 +72,7 @@ public class ClientState {
      */
     public static boolean isLoaded() {
         Minecraft minecraft = Minecraft.getInstance();
-        return minecraft.getOverlay() == null && minecraft.screen != null || inWorld();
+        return minecraft.gui.overlay() == null && screen() != null || inWorld();
     }
 
     public static boolean inWorld() {
