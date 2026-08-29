@@ -48,7 +48,11 @@ if [[ "$INSTALL" == "1" ]]; then
 fi
 
 log "Checking the toolchain"
-java -version 2>&1 | head -1 || { echo "No JDK found. Minecraft 1.21 needs Java 21." >&2; exit 2; }
+# Which JDK version is needed depends on the Minecraft version the mod targets (1.21 wants 21, the
+# 26 line wants 25), and Gradle takes it from JAVA_HOME rather than the PATH, so the real check is
+# `clientdevbridge doctor` against a project. This only establishes that there is a JDK at all.
+"${JAVA_HOME:+$JAVA_HOME/bin/}java" -version 2>&1 | head -1 \
+  || { echo "No JDK found. Install one matching the mod's java_version, and point JAVA_HOME at it." >&2; exit 2; }
 node --version
 
 if [[ -n "$PROJECT" ]]; then
