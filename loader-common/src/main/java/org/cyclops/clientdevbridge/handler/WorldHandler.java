@@ -11,7 +11,6 @@ import org.cyclops.clientdevbridge.mcadapter.WorldQuery;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import org.cyclops.clientdevbridge.protocol.Json;
 import org.cyclops.clientdevbridge.protocol.Params;
-import org.cyclops.clientdevbridge.protocol.RpcException;
 
 import java.nio.file.Path;
 import java.util.List;
