@@ -38,3 +38,17 @@ All notable changes to ClientDevBridge are documented here.
 
 - `window.resize` with GUI scale, and the determinism settings pinned in `options.txt` at launch.
 - `eval` (Groovy through `javax.script`, gated behind `-Dclientdevbridge.eval=true`) and `wait --expr`.
+
+### Phase 5 — fast iteration
+
+- `hotswap`: recompiles the consumer and redefines changed classes in the running client over JDWP,
+  distinguishing classes the JVM refused (a restart is needed) from ones not yet loaded (no action).
+
+### Phase 6 — cloud support and agent documentation
+
+- `docs/AGENT_WORKFLOW.md`, `docs/PROTOCOL.md`, `docs/cloud-setup.md`, a ready-to-paste consumer
+  `CLAUDE.md` snippet, and a Claude Code skill.
+- `scripts/cloud-setup.sh` and the verified network allowlist.
+- `scripts/e2e.sh`, running the whole scenario against a real client on both loaders.
+- CI: build and publish, the end-to-end suite on both loaders, and a guard that fails an
+  unannounced `PROTOCOL_VERSION` change.

@@ -1,0 +1,33 @@
+name: "Protocol guard"
+
+# The wire protocol must be identical on every branch: a single clientdevbridge-cli release has to
+# drive them all. This fails a change to PROTOCOL_VERSION that has not been discussed, so a
+# breaking change cannot land on one branch alone.
+
+on:
+  pull_request:
+    paths:
+      - 'loader-common/src/main/java/org/cyclops/clientdevbridge/Reference.java'
+      - 'docs/PROTOCOL.md'
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 'Check whether PROTOCOL_VERSION changed'
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          FILE=loader-common/src/main/java/org/cyclops/clientdevbridge/Reference.java
+          before="$(git show "$BASE:$FILE" 2>/dev/null | grep -oP 'PROTOCOL_VERSION = \K[0-9]+' || echo none)"
+          after="$(grep -oP 'PROTOCOL_VERSION = \K[0-9]+' "$FILE")"
+          if [[ "$before" != "none" && "$before" != "$after" ]]; then
+            echo "::error::PROTOCOL_VERSION changed from $before to $after."
+            echo "::error::A protocol bump must land on every active branch in the same release train,"
+            echo "::error::and clientdevbridge-cli must be updated to match. If that is what you are doing,"
+            echo "::error::say so in the pull request description and re-run this check."
+            exit 1
+          fi
+          echo "PROTOCOL_VERSION is unchanged at $after."

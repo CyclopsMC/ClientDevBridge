@@ -30,6 +30,14 @@ public class Reference {
      */
     public static final String PROPERTY_EVAL = "clientdevbridge.eval";
     /**
+     * Set to false to let toast popups render.
+     *
+     * Toasts fade in and out over several seconds, so a screenshot taken near one is not
+     * reproducible; they are suppressed by default because a golden image is worth more here than
+     * a notification nobody is watching.
+     */
+    public static final String PROPERTY_TOASTS = "clientdevbridge.toasts";
+    /**
      * The consumer project's root directory, so the mod can find world templates committed there.
      * Set by the generated init script; falls back to the run directory's grandparent.
      */

@@ -5,7 +5,7 @@ import net.minecraft.core.BlockPos;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
 import org.cyclops.clientdevbridge.mcadapter.CommandRunner;
-import org.cyclops.clientdevbridge.mcadapter.McAdapter;
+import org.cyclops.clientdevbridge.mcadapter.Polling;
 import org.cyclops.clientdevbridge.mcadapter.WorldControl;
 import org.cyclops.clientdevbridge.mcadapter.WorldQuery;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
@@ -26,7 +26,7 @@ public class WorldHandler {
 
     public static final String DEFAULT_WORLD = "clientdevbridge";
     /** Generating and joining a world is slow under software rendering; be generous. */
-    private static final int LOAD_TIMEOUT_TICKS = 20 * 90;
+    private static final long LOAD_TIMEOUT_MS = 180_000;
 
     public static void register(Dispatcher dispatcher, Path projectDir) {
         dispatcher.register("world.reset", raw -> {
@@ -109,8 +109,8 @@ public class WorldHandler {
     }
 
     private static CompletableFuture<Boolean> awaitOutOfWorld() {
-        return McAdapter.tickClock().awaitCondition(() -> !ClientState.inWorld(), 20 * 20,
-                "The client did not leave the world within 20 seconds.");
+        return Polling.await(() -> !ClientState.inWorld(), 20_000,
+                "The client did not leave the world within 20 seconds. See 'clientdevbridge logs --gradle'.");
     }
 
     /**
@@ -122,19 +122,19 @@ public class WorldHandler {
      * and it is exactly the kind of race that silently poisons a golden image.
      */
     private static CompletableFuture<Boolean> awaitInWorld(String name) {
-        return McAdapter.tickClock().awaitCondition(
-                () -> ClientState.inWorld()
-                        && net.minecraft.client.Minecraft.getInstance().getSingleplayerServer() != null
-                        && ClientState.screen() == null
-                        && net.minecraft.client.Minecraft.getInstance().level
-                                .isLoaded(new BlockPos(WorldControl.SPAWN_X, WorldControl.SPAWN_Y, WorldControl.SPAWN_Z)),
-                LOAD_TIMEOUT_TICKS,
-                "The world '" + name + "' did not finish loading within "
-                        + (LOAD_TIMEOUT_TICKS / 20) + " seconds. Check 'clientdevbridge logs' for errors.")
-                .exceptionally(throwable -> {
-                    throw RpcException.illegalState(throwable.getCause() == null
-                            ? throwable.getMessage() : throwable.getCause().getMessage());
-                });
+        return Polling.await(
+                () -> {
+                    net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
+                    return ClientState.inWorld()
+                            && minecraft.getSingleplayerServer() != null
+                            && minecraft.screen == null
+                            && minecraft.level != null
+                            && minecraft.level.isLoaded(new BlockPos(
+                                    WorldControl.SPAWN_X, WorldControl.SPAWN_Y, WorldControl.SPAWN_Z));
+                },
+                LOAD_TIMEOUT_MS,
+                "The world '" + name + "' did not finish loading within " + (LOAD_TIMEOUT_MS / 1000)
+                        + " seconds. Check 'clientdevbridge logs --gradle' for errors.");
     }
 
 }

@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import net.minecraft.world.phys.Vec3;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
+import org.cyclops.clientdevbridge.mcadapter.McAdapter;
 import org.cyclops.clientdevbridge.mcadapter.PlayerControl;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import org.cyclops.clientdevbridge.protocol.Json;
@@ -16,6 +17,9 @@ import org.cyclops.clientdevbridge.protocol.RpcException;
  * @author rubensworks
  */
 public class PlayerHandler {
+
+    /** How long to wait for a teleport to round-trip through the integrated server. */
+    private static final int ARRIVAL_TIMEOUT_TICKS = 40;
 
     public static void register(Dispatcher dispatcher) {
         dispatcher.register("player.look", raw -> {
@@ -43,10 +47,19 @@ public class PlayerHandler {
             double z = params.getDouble("z");
             Float yaw = params.has("yaw") ? (float) params.getDouble("yaw") : null;
             Float pitch = params.has("pitch") ? (float) params.getDouble("pitch") : null;
-            return ClientThread.submit(() -> {
-                PlayerControl.teleport(x, y, z, yaw, pitch);
-                return playerState();
-            });
+
+            // Teleporting goes through the integrated server, so the client only moves once the
+            // position packet comes back. Returning before then reports the old position and, far
+            // worse, lets the next screenshot catch the camera mid-move -- which silently poisons
+            // a golden image recorded straight after a teleport.
+            return ClientThread.run(() -> PlayerControl.teleport(x, y, z, yaw, pitch))
+                    .thenCompose(ignored -> McAdapter.tickClock().awaitCondition(
+                            () -> PlayerControl.isAt(x, y, z), ARRIVAL_TIMEOUT_TICKS, null))
+                    .thenCompose(arrived -> ClientThread.submit(() -> {
+                        JsonObject state = playerState();
+                        state.addProperty("arrived", arrived);
+                        return state;
+                    }));
         });
 
         dispatcher.register("player.inventory", raw -> ClientThread.submit(PlayerControl::inventory));

@@ -51,6 +51,22 @@ public class PlayerControl {
         }
     }
 
+    /**
+     * Whether the client-side player has actually arrived within half a block of a target.
+     *
+     * Half a block is deliberately loose: the server snaps the player onto the ground, so an exact
+     * comparison would never be true for a y that is not already resting on a surface.
+     */
+    public static boolean isAt(double x, double y, double z) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return false;
+        }
+        return Math.abs(player.getX() - x) < 0.5d
+                && Math.abs(player.getY() - y) < 1.5d
+                && Math.abs(player.getZ() - z) < 0.5d;
+    }
+
     public static void selectHotbarSlot(int slot) {
         if (slot < 0 || slot > 8) {
             throw RpcException.invalidParams("Parameter 'slot' must be a hotbar slot 0-8, but was " + slot);

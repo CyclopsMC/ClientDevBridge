@@ -100,7 +100,7 @@ public class ClientDevBridge {
                 if (running != null) {
                     running.broadcast(Dispatcher.notification(method, params));
                 }
-            });
+            }, !config.areToastsEnabled());
             hooks.registerClientTick(watcher::onClientTick);
 
             Runtime.getRuntime().addShutdownHook(new Thread(ClientDevBridge::stop, "ClientDevBridge-shutdown"));

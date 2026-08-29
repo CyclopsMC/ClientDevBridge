@@ -1,0 +1,102 @@
+name: "CI"
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Setup Java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'microsoft'
+          java-version: 21
+      - name: 'Setup Gradle'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: false
+      - name: 'Mark tag as release'
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "RELEASE=true" >> $GITHUB_ENV
+      - name: 'Build'
+        run: ./gradlew build --no-daemon
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_KEY: ${{ secrets.MAVEN_KEY }}
+          GITHUB_USER: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Deploy as GitHub CI artifacts'
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: jars
+          path: loader-*/build/libs/*
+      - name: 'Deploy to Maven'
+        if: startsWith(github.ref, 'refs/heads/master')
+        env:
+          MAVEN_URL: ${{ secrets.MAVEN_URL }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_KEY: ${{ secrets.MAVEN_KEY }}
+        run: ./gradlew publish
+
+  e2e:
+    name: End to end (${{ matrix.loader }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [neoforge, fabric]
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Setup Java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'microsoft'
+          java-version: 21
+      - name: 'Setup Gradle'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+      - name: 'Setup Node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # A real client on a virtual display: xvfb plus Mesa's llvmpipe software rasteriser.
+      # libgl1-mesa-dri is the one that matters -- without it the client dies during shader
+      # loading with no useful error.
+      - name: 'Install the virtual display and software OpenGL'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils libglu1-mesa
+      - name: 'Install the CLI'
+        run: |
+          git clone --depth 1 https://github.com/CyclopsMC/clientdevbridge-cli /tmp/cli
+          cd /tmp/cli && npm ci && npm run build && npm link
+      - name: 'Run the end-to-end suite'
+        run: ./scripts/e2e.sh ${{ matrix.loader }}
+        env:
+          # Present, the suite runs against a real Flopper checkout on the matching branch;
+          # absent, it falls back to the minimal fixture in e2e/consumer.
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_KEY: ${{ secrets.MAVEN_KEY }}
+          GITHUB_USER: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Upload screenshots and diffs'
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: e2e-${{ matrix.loader }}
+          path: |
+            e2e/*/.clientdevbridge/screenshots/**
+            e2e/*/.clientdevbridge/diffs/**
+            e2e/*/.clientdevbridge/gradle.log

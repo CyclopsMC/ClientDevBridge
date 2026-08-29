@@ -62,6 +62,19 @@ public class ClientState {
         return screen == null ? null : screen.getClass().getName();
     }
 
+    /**
+     * Whether the client has finished starting up.
+     *
+     * The bridge's socket opens during mod initialisation, which is well before the game is
+     * usable: the resource reload is still running behind a {@code LoadingOverlay}, no client
+     * ticks are happening, and anything asked of the game will either race or hang. This is the
+     * signal that the client is genuinely ready to be driven.
+     */
+    public static boolean isLoaded() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.getOverlay() == null && minecraft.screen != null || inWorld();
+    }
+
     public static boolean inWorld() {
         Minecraft minecraft = Minecraft.getInstance();
         return minecraft.level != null && minecraft.player != null;
@@ -102,6 +115,7 @@ public class ClientState {
     public static JsonObject status(long tick) {
         Minecraft minecraft = Minecraft.getInstance();
         JsonObject status = Json.object();
+        status.addProperty("loaded", isLoaded());
         status.addProperty("inWorld", inWorld());
         status.addProperty("screenClass", screenClass());
         status.addProperty("tick", tick);

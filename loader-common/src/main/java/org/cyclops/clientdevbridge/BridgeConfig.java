@@ -14,12 +14,19 @@ public class BridgeConfig {
     private final boolean evalEnabled;
     private final int port;
     private final java.nio.file.Path projectDir;
+    private final boolean toastsEnabled;
 
     public BridgeConfig(boolean enabled, boolean evalEnabled, int port, java.nio.file.Path projectDir) {
+        this(enabled, evalEnabled, port, projectDir, false);
+    }
+
+    public BridgeConfig(boolean enabled, boolean evalEnabled, int port, java.nio.file.Path projectDir,
+                        boolean toastsEnabled) {
         this.enabled = enabled;
         this.evalEnabled = evalEnabled;
         this.port = port;
         this.projectDir = projectDir;
+        this.toastsEnabled = toastsEnabled;
     }
 
     public static BridgeConfig fromSystemProperties() {
@@ -27,7 +34,8 @@ public class BridgeConfig {
                 Boolean.parseBoolean(System.getProperty(Reference.PROPERTY_ENABLED, "false")),
                 Boolean.parseBoolean(System.getProperty(Reference.PROPERTY_EVAL, "false")),
                 parsePort(System.getProperty(Reference.PROPERTY_PORT)),
-                parseProjectDir(System.getProperty(Reference.PROPERTY_PROJECT_DIR))
+                parseProjectDir(System.getProperty(Reference.PROPERTY_PROJECT_DIR)),
+                Boolean.parseBoolean(System.getProperty(Reference.PROPERTY_TOASTS, "false"))
         );
     }
 
@@ -67,6 +75,13 @@ public class BridgeConfig {
 
     public int getPort() {
         return this.port;
+    }
+
+    /**
+     * Whether toast popups are allowed to render. Off by default, for reproducible screenshots.
+     */
+    public boolean areToastsEnabled() {
+        return this.toastsEnabled;
     }
 
     /**

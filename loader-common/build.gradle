@@ -6,4 +6,9 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Gson ships with Minecraft, so the main sources see it through the game's classpath; the
+    // unit tests deliberately do not depend on Minecraft at all, so they need it declared.
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'org.slf4j:slf4j-api:2.0.9'
 }

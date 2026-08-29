@@ -20,18 +20,26 @@ import java.util.function.BiConsumer;
 public class StateWatcher {
 
     private final BiConsumer<String, JsonObject> notify;
+    private final boolean suppressToasts;
 
     @Nullable
     private String lastScreenClass;
     private boolean lastInWorld;
     private boolean primed;
 
-    public StateWatcher(BiConsumer<String, JsonObject> notify) {
+    public StateWatcher(BiConsumer<String, JsonObject> notify, boolean suppressToasts) {
         this.notify = notify;
+        this.suppressToasts = suppressToasts;
     }
 
     public void onClientTick() {
         Minecraft minecraft = Minecraft.getInstance();
+
+        // Toasts fade in and out over several seconds, so anything on screen while one is showing
+        // is not reproducible. Clearing them every tick keeps them from ever being drawn.
+        if (this.suppressToasts) {
+            minecraft.getToasts().clear();
+        }
         String screenClass = minecraft.screen == null ? null : minecraft.screen.getClass().getName();
         boolean inWorld = minecraft.level != null && minecraft.player != null;
 

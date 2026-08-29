@@ -53,4 +53,26 @@ on the oldest affected branch and are upmerged forwards.
 ./gradlew spotlessApply        # formatting
 ```
 
-See `AGENTS.md` for the full developer and agent guide, and `docs/` for the protocol reference.
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md) | The edit → hotswap → inspect → compare loop, in full |
+| [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | Every method, the snapshot schema, and how to register your own extractors |
+| [`docs/cloud-setup.md`](docs/cloud-setup.md) | Running headless in a cloud sandbox or CI, with the network allowlist |
+| [`docs/snippets/CONSUMER_CLAUDE.md`](docs/snippets/CONSUMER_CLAUDE.md) | A ready-to-paste section for your mod's `CLAUDE.md` |
+| [`skills/clientdevbridge/SKILL.md`](skills/clientdevbridge/SKILL.md) | A Claude Code skill |
+| [`AGENTS.md`](AGENTS.md) | Developer guide: the `mcadapter` rule, the threading rules, how to port a version |
+
+## What it can do
+
+- **`snapshot`** — the widget tree of the open screen: every widget's type, label, bounds, state and
+  value, plus container slots with their absolute positions and contents.
+- **`screenshot`** — the framebuffer as a PNG, written to a file whose path is printed.
+- **`compare`** — that screenshot against a committed golden image, with a readable diff on failure.
+- **Input** — clicks, drags, scrolls, key presses and typing, delivered through the same listener
+  methods GLFW callbacks use, so widgets see exactly what a real click produces.
+- **World control** — a deterministic creative superflat world on demand, commands on the
+  integrated server, block and inventory inspection.
+- **`hotswap`** — recompile and redefine changed classes in the running client over JDWP.
+- **`eval`** — a Groovy escape hatch for anything the typed methods do not cover.
