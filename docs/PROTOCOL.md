@@ -75,7 +75,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 
 | Method | Params | Result |
 |---|---|---|
-| `status` | – | `{ loaded, inWorld, screenClass, tick, fps, dimension, glRenderer, player: { pos, yaw, pitch }, ...metrics }` |
+| `status` | – | `{ loaded, inWorld, screenClass, tick, fps, dimension, gameDir, glRenderer, player: { pos, yaw, pitch }, ...metrics }` |
 | `screenshot` | `{ region?: {x,y,w,h,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, ...metrics }` |
 | `screen.snapshot` | `{ includeHidden?, maxDepth? }` | see below |
 | `screen.tooltip` | `{ x, y, space? }` | `{ lines: [string], source, slot?, item?, widget? }` |

@@ -95,8 +95,14 @@ log "status"
 log "Phase 1: screenshot the title screen"
 TITLE_PNG="$("$CLI" --project "$CONSUMER" screenshot --name e2e-title --quiet)"
 [[ -f "$TITLE_PNG" ]] || fail "no screenshot was written"
-# A single flat colour means nothing was rendered; a real title screen has many.
-COLOURS="$(node -e '
+# A single flat colour means nothing was rendered; a real title screen has many. Counting them
+# needs a PNG decoder, and the only one around is the CLI's own `pngjs` -- this repository has no
+# node_modules of its own. Node resolves from the CLI's installation directory, so point it there;
+# when the CLI is a wrapper script or a checkout that resolution can fail, and the run falls back
+# to the file size, which separates the two cases just as well: a flat 854x480 image deflates to
+# well under a kilobyte, a rendered title screen to hundreds of them.
+CLI_DIR="$(dirname "$(readlink -f "$(command -v "$CLI")" 2>/dev/null || echo "$CLI")")"
+COLOURS="$(cd "$CLI_DIR" && node -e '
 const fs = require("fs");
 const { PNG } = require("pngjs");
 const png = PNG.sync.read(fs.readFileSync(process.argv[1]));
@@ -106,9 +112,15 @@ for (let i = 0; i < png.data.length; i += 4) {
   if (seen.size > 200) break;
 }
 console.log(seen.size);
-' "$TITLE_PNG")"
-[[ "$COLOURS" -gt 50 ]] || fail "the title screenshot has only $COLOURS distinct colours, so nothing rendered"
-echo "title screen: $TITLE_PNG ($COLOURS+ distinct colours)"
+' "$TITLE_PNG" 2>/dev/null || echo "")"
+if [[ -n "$COLOURS" ]]; then
+  [[ "$COLOURS" -gt 50 ]] || fail "the title screenshot has only $COLOURS distinct colours, so nothing rendered"
+  echo "title screen: $TITLE_PNG ($COLOURS+ distinct colours)"
+else
+  BYTES="$(wc -c < "$TITLE_PNG")"
+  [[ "$BYTES" -gt 20000 ]] || fail "the title screenshot is only $BYTES bytes, so nothing rendered"
+  echo "title screen: $TITLE_PNG ($BYTES bytes; no PNG decoder available, so size was checked instead)"
+fi
 
 log "Phase 4: pin the window for reproducible screenshots"
 "$CLI" --project "$CONSUMER" resize --width 854 --height 480 --gui-scale 2 | tee /tmp/cdb-resize.txt

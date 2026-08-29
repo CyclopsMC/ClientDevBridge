@@ -63,16 +63,23 @@ public class ScreenControl {
     /**
      * Puts the player a couple of blocks away from the target and looks straight at it.
      *
-     * The caller must let a few ticks pass before clicking: the teleport goes through the
-     * integrated server, and until it has come back the server still believes the player is
-     * wherever it was, and silently rejects the interaction as out of reach.
+     * The caller must wait for the player to actually arrive before clicking: the teleport goes
+     * through the integrated server, and until the new position has come back the server still
+     * believes the player is wherever it was, and silently rejects the interaction as out of
+     * reach. {@link #approachTarget(BlockPos)} is what to wait for.
      */
     public static void approach(BlockPos pos) {
-        double x = pos.getX() + 0.5d;
-        double y = pos.getY() + 1.0d;
-        double z = pos.getZ() + 2.5d;
-        CommandRunner.run(String.format("tp @s %.2f %.2f %.2f 0 30", x, y, z));
+        double[] target = approachTarget(pos);
+        CommandRunner.run(String.format("tp @s %.2f %.2f %.2f 0 30", target[0], target[1], target[2]));
         PlayerControl.lookAt(Vec3.atCenterOf(pos));
+    }
+
+    /**
+     * Where {@link #approach(BlockPos)} puts the player, so the caller can wait for it to land
+     * there instead of guessing how long the round trip takes.
+     */
+    public static double[] approachTarget(BlockPos pos) {
+        return new double[] { pos.getX() + 0.5d, pos.getY() + 1.0d, pos.getZ() + 2.5d };
     }
 
     /**
