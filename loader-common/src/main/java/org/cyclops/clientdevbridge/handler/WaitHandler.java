@@ -1,8 +1,6 @@
 package org.cyclops.clientdevbridge.handler;
 
 import com.google.gson.JsonObject;
-import net.minecraft.client.Minecraft;
-import net.minecraft.core.BlockPos;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.McAdapter;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
@@ -78,10 +76,8 @@ public class WaitHandler {
                 return () -> !ClientState.inWorld();
             case "chunkLoaded": {
                 double[] pos = params.getNumberArray("value", 3);
-                BlockPos blockPos = new BlockPos((int) pos[0], (int) pos[1], (int) pos[2]);
                 return () -> ClientState.inWorld()
-                        && Minecraft.getInstance().level != null
-                        && Minecraft.getInstance().level.isLoaded(blockPos);
+                        && ClientState.isChunkLoaded((int) pos[0], (int) pos[1], (int) pos[2]);
             }
             case "expr": {
                 String expression = params.getString("value");

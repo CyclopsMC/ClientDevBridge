@@ -127,15 +127,8 @@ public class WorldHandler {
      */
     private static CompletableFuture<Boolean> awaitInWorld(String name) {
         return Polling.await(
-                () -> {
-                    net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
-                    return ClientState.inWorld()
-                            && minecraft.getSingleplayerServer() != null
-                            && minecraft.screen == null
-                            && minecraft.level != null
-                            && minecraft.level.isLoaded(new BlockPos(
-                                    WorldControl.SPAWN_X, WorldControl.SPAWN_Y, WorldControl.SPAWN_Z));
-                },
+                () -> ClientState.isWorldReadyAt(
+                        WorldControl.SPAWN_X, WorldControl.SPAWN_Y, WorldControl.SPAWN_Z),
                 LOAD_TIMEOUT_MS,
                 "The world '" + name + "' did not finish loading within " + (LOAD_TIMEOUT_MS / 1000)
                         + " seconds. Check 'clientdevbridge logs --gradle' for errors.");
