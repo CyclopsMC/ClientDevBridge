@@ -1,0 +1,23 @@
+modLoader="javafml"
+loaderVersion="${neoforge_loader_version_range}"
+issueTrackerURL="${issue_tracker_url}"
+displayURL="${display_url}"
+license="${license}"
+authors="${mod_author}"
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+description="${description}"
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neoforge_version},)"
+    ordering="NONE"
+    side="CLIENT"
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="[${minecraft_version},]"
+    ordering="NONE"
+    side="CLIENT"

@@ -1,0 +1,3 @@
+# ClientDevBridge session state (golden images are intentionally kept)
+.clientdevbridge/*
+!.clientdevbridge/golden/

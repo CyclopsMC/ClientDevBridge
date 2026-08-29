@@ -1,0 +1,15 @@
+# Build output
+build/
+.gradle/
+run/
+runs/
+
+# The Flopper checkout scripts/e2e.sh clones on demand
+e2e/flopper/
+
+# ClientDevBridge session state (golden images are intentionally kept)
+.clientdevbridge/*
+!.clientdevbridge/golden/
+
+# Local secrets
+secrets.properties

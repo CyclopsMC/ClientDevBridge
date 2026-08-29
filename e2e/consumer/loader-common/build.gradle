@@ -1,0 +1,4 @@
+plugins {
+    id 'multiloader-loader-common'
+}
+
