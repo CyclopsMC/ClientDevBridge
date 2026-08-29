@@ -14,7 +14,7 @@ e2e/flopper/
 # ...except the e2e fixture's, which are not a baseline: scripts/e2e.sh writes the golden with
 # --update at the start of every run and compares against what it just wrote, so a committed copy
 # is never read. Tracking it only means each run dirties the tree, with whichever loader ran last.
-e2e/consumer/.clientdevbridge/golden/
+e2e/consumer/.clientdevbridge/golden/**
 
 # Local secrets
 secrets.properties
