@@ -1,0 +1,16 @@
+accessWidener v1 named
+
+# AbstractContainerScreen's layout and hover state are what makes a container snapshot useful:
+# without them a caller cannot relate a slot index to a position on the screenshot.
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen imageWidth I
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen imageHeight I
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen leftPos I
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen topPos I
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen hoveredSlot Lnet/minecraft/world/inventory/Slot;
+
+# Pure decorations are Renderables that are not GuiEventListeners, so they never appear in
+# children(); they are reported only when includeHidden is set.
+accessible field net/minecraft/client/gui/screens/Screen renderables Ljava/util/List;
+
+# AbstractSliderButton's normalised position is the only thing that says where a slider is.
+accessible field net/minecraft/client/gui/components/AbstractSliderButton value D

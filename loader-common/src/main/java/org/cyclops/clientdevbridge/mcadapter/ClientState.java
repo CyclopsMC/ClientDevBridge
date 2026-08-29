@@ -21,10 +21,34 @@ import javax.annotation.Nullable;
 public class ClientState {
 
     /**
+     * The OpenGL renderer string, e.g. {@code llvmpipe (LLVM 20.1.2, 256 bits)}.
+     */
+    public static String glRenderer() {
+        try {
+            return com.mojang.blaze3d.platform.GlUtil.getRenderer();
+        } catch (Throwable e) {
+            // Only reachable off the render thread or before the context exists; not worth failing over.
+            return "unknown";
+        }
+    }
+
+    /**
      * The running Minecraft version, e.g. {@code 1.21.1}.
      */
     public static String minecraftVersion() {
         return net.minecraft.SharedConstants.getCurrentVersion().getName();
+    }
+
+    /**
+     * The registry access the client currently has, needed to serialise {@code Component}s.
+     * Falls back to the built-in registries before a world is joined.
+     */
+    public static net.minecraft.core.HolderLookup.Provider registryAccess() {
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        return level == null
+                ? net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                        net.minecraft.core.registries.BuiltInRegistries.REGISTRY)
+                : level.registryAccess();
     }
 
     @Nullable
@@ -96,6 +120,10 @@ public class ClientState {
             playerObject.addProperty("pitch", player.getXRot());
             status.add("player", playerObject);
         }
+
+        // The renderer name is what keys golden-image sets: llvmpipe and a real GPU do not
+        // produce identical pixels, and one tolerance cannot cover both without hiding regressions.
+        status.addProperty("glRenderer", glRenderer());
 
         Geometry.addMetrics(status);
         return status;

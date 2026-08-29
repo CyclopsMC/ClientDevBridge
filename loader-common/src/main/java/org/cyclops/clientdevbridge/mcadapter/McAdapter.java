@@ -15,7 +15,12 @@ public class McAdapter {
 
     public static void install(IClientHooks clientHooks) {
         hooks = clientHooks;
-        clientHooks.registerClientTick(TICK_CLOCK::onClientTick);
+        clientHooks.registerClientTick(() -> {
+            // Blocking actions run first: they pump nested ticks, and the clock has to keep
+            // advancing through them so that whoever is waiting on the result still gets ticks.
+            ClientThread.drainTickActions();
+            TICK_CLOCK.onClientTick();
+        });
     }
 
     public static IClientHooks hooks() {

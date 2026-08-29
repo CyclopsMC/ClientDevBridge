@@ -1,14 +1,22 @@
 package org.cyclops.clientdevbridge;
 
 import com.google.gson.JsonObject;
+import org.cyclops.clientdevbridge.handler.EvalHandler;
+import org.cyclops.clientdevbridge.handler.InputHandler;
 import org.cyclops.clientdevbridge.handler.LogHandler;
+import org.cyclops.clientdevbridge.handler.PlayerHandler;
+import org.cyclops.clientdevbridge.handler.ScreenHandler;
 import org.cyclops.clientdevbridge.handler.ScreenshotHandler;
+import org.cyclops.clientdevbridge.handler.SnapshotHandler;
 import org.cyclops.clientdevbridge.handler.StatusHandler;
 import org.cyclops.clientdevbridge.handler.WaitHandler;
+import org.cyclops.clientdevbridge.handler.WindowHandler;
+import org.cyclops.clientdevbridge.handler.WorldHandler;
 import org.cyclops.clientdevbridge.logging.LogCapture;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.IClientHooks;
 import org.cyclops.clientdevbridge.mcadapter.McAdapter;
+import org.cyclops.clientdevbridge.mcadapter.StateWatcher;
 import org.cyclops.clientdevbridge.net.BridgeServer;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import org.cyclops.clientdevbridge.protocol.Json;
@@ -35,7 +43,8 @@ public class ClientDevBridge {
     private static BridgeServer server;
     @Nullable
     private static LogCapture logCapture;
-    private static BridgeConfig config = new BridgeConfig(false, false, Reference.DEFAULT_PORT);
+    private static BridgeConfig config = new BridgeConfig(false, false, Reference.DEFAULT_PORT,
+            java.nio.file.Paths.get("").toAbsolutePath());
 
     /**
      * Starts the bridge, unless {@code -Dclientdevbridge.enabled=true} was not passed.
@@ -53,6 +62,7 @@ public class ClientDevBridge {
 
         try {
             McAdapter.install(hooks);
+            org.cyclops.clientdevbridge.mcadapter.VanillaExtractors.registerAll();
 
             logCapture = new LogCapture();
 
@@ -61,6 +71,13 @@ public class ClientDevBridge {
             ScreenshotHandler.register(dispatcher);
             WaitHandler.register(dispatcher);
             LogHandler.register(dispatcher, logCapture.getRing());
+            WorldHandler.register(dispatcher, config.getProjectDir());
+            InputHandler.register(dispatcher);
+            ScreenHandler.register(dispatcher);
+            PlayerHandler.register(dispatcher);
+            SnapshotHandler.register(dispatcher);
+            WindowHandler.register(dispatcher);
+            EvalHandler.register(dispatcher);
 
             BridgeServer bridgeServer = new BridgeServer(config.getPort(), dispatcher, ClientDevBridge::helloMessage);
             bridgeServer.start();
@@ -75,6 +92,16 @@ public class ClientDevBridge {
                     running.broadcast(Dispatcher.notification("log.line", params));
                 }
             });
+
+            // Screen and world transitions are derived per tick rather than from loader events,
+            // so both loaders report them at exactly the same moment.
+            StateWatcher watcher = new StateWatcher((method, params) -> {
+                BridgeServer running = server;
+                if (running != null) {
+                    running.broadcast(Dispatcher.notification(method, params));
+                }
+            });
+            hooks.registerClientTick(watcher::onClientTick);
 
             Runtime.getRuntime().addShutdownHook(new Thread(ClientDevBridge::stop, "ClientDevBridge-shutdown"));
 

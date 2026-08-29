@@ -1,0 +1,219 @@
+package org.cyclops.clientdevbridge.mcadapter;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.LevelSettings;
+import net.minecraft.world.level.WorldDataConfiguration;
+import net.minecraft.world.level.levelgen.WorldOptions;
+import net.minecraft.world.level.levelgen.presets.WorldPresets;
+import net.minecraft.world.level.storage.LevelStorageSource;
+import org.cyclops.clientdevbridge.ClientDevBridge;
+import org.cyclops.clientdevbridge.protocol.RpcException;
+
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+
+/**
+ * Creating, loading, deleting and leaving singleplayer worlds.
+ *
+ * A world is always created <em>programmatically</em>, through Minecraft's own world-creation code,
+ * rather than by shipping a save file. A save file is written in the save format of one particular
+ * Minecraft version, so it would silently rot on every branch; going through {@code WorldOpenFlows}
+ * is correct for whatever version this branch is built against, by construction.
+ *
+ * @author rubensworks
+ */
+public class WorldControl {
+
+    /** A fixed seed, so a reset world is byte-for-byte the same one every time. */
+    public static final long SEED = 4_815_162_342L;
+
+    /**
+     * The rules that make a test world hold still: no day/night, no weather, no mobs, no drops
+     * disappearing, and no advancement toasts drifting across a screenshot.
+     */
+    private static final List<String> DETERMINISM_GAMERULES = List.of(
+            "doDaylightCycle false",
+            "doWeatherCycle false",
+            "doMobSpawning false",
+            "doFireTick false",
+            "randomTickSpeed 0",
+            "mobGriefing false",
+            "doTraderSpawning false",
+            "doPatrolSpawning false",
+            "announceAdvancements false",
+            "sendCommandFeedback true",
+            "doInsomnia false",
+            "playersSleepingPercentage 200");
+
+    public static final int SPAWN_X = 0;
+    public static final int SPAWN_Y = 4;
+    public static final int SPAWN_Z = 0;
+
+    /**
+     * Half-width of the stone platform built under the spawn.
+     *
+     * The FLAT preset's surface is far below the documented spawn of 0,4,0, so without a platform
+     * the player is spawned into open air and falls — which quietly breaks anything that depends
+     * on standing still, most visibly a container screen closing as the player drops out of range.
+     * Building the platform keeps the spawn at the documented, easy-to-reason-about coordinates
+     * and gives screenshots a uniform backdrop.
+     */
+    public static final int PLATFORM_RADIUS = 8;
+    public static final int PLATFORM_Y = SPAWN_Y - 1;
+
+    public static LevelStorageSource levelSource() {
+        return Minecraft.getInstance().getLevelSource();
+    }
+
+    public static boolean exists(String name) {
+        return levelSource().levelExists(name);
+    }
+
+    public static List<String> listWorlds() {
+        try (var stream = Files.list(levelSource().getBaseDir())) {
+            return stream
+                    .filter(Files::isDirectory)
+                    .map(path -> path.getFileName().toString())
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+        } catch (IOException e) {
+            throw RpcException.illegalState("Could not list the saves directory: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Leaves the current world, if any, and waits for the client to actually be out of it.
+     */
+    public static void leave() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level != null) {
+            minecraft.level.disconnect();
+        }
+        minecraft.disconnect();
+        minecraft.setScreen(null);
+    }
+
+    /**
+     * Deletes a save directory. The world must not be loaded.
+     */
+    public static void delete(String name) {
+        if (!exists(name)) {
+            return;
+        }
+        try (LevelStorageSource.LevelStorageAccess access = levelSource().createAccess(name)) {
+            access.deleteLevel();
+        } catch (IOException e) {
+            throw RpcException.illegalState("Could not delete the world '" + name + "': " + e.getMessage());
+        }
+    }
+
+    /**
+     * Copies a template directory committed in the consumer repository into the saves directory.
+     *
+     * @param templatesRoot {@code <projectDir>/clientdevbridge/templates}
+     */
+    public static void copyTemplate(Path templatesRoot, String template, String worldName) {
+        Path source = templatesRoot.resolve(template);
+        if (!Files.isDirectory(source)) {
+            throw RpcException.invalidParams("No world template '" + template + "' at " + source
+                    + ". Commit one there, or drop --template to generate a fresh superflat world.");
+        }
+        Path target = levelSource().getLevelPath(worldName);
+        try {
+            copyRecursively(source, target);
+        } catch (IOException e) {
+            throw RpcException.illegalState("Could not copy the world template '" + template + "': " + e.getMessage());
+        }
+    }
+
+    private static void copyRecursively(Path source, Path target) throws IOException {
+        try (var stream = Files.walk(source)) {
+            for (Path path : stream.toList()) {
+                Path destination = target.resolve(source.relativize(path).toString());
+                if (Files.isDirectory(path)) {
+                    Files.createDirectories(destination);
+                } else {
+                    Files.createDirectories(destination.getParent());
+                    Files.copy(path, destination);
+                }
+            }
+        }
+    }
+
+    /**
+     * Creates a fresh creative superflat world and starts loading it.
+     *
+     * This returns as soon as loading has been kicked off; callers wait for the {@code world.joined}
+     * condition rather than blocking the client thread.
+     */
+    public static void createSuperflat(String name) {
+        Minecraft minecraft = Minecraft.getInstance();
+        LevelSettings settings = new LevelSettings(
+                name,
+                GameType.CREATIVE,
+                false,
+                Difficulty.PEACEFUL,
+                true, // Cheats on: everything the bridge does with the world goes through commands.
+                new GameRules(),
+                WorldDataConfiguration.DEFAULT);
+        WorldOptions options = new WorldOptions(SEED, false, false);
+
+        minecraft.createWorldOpenFlows().createFreshLevel(
+                name,
+                settings,
+                options,
+                WorldControl::flatDimensions,
+                null);
+    }
+
+    private static net.minecraft.world.level.levelgen.WorldDimensions flatDimensions(RegistryAccess registryAccess) {
+        return registryAccess
+                .registryOrThrow(Registries.WORLD_PRESET)
+                .getHolderOrThrow(WorldPresets.FLAT)
+                .value()
+                .createWorldDimensions();
+    }
+
+    /**
+     * Opens an existing world by its save folder name.
+     */
+    public static void load(String name) {
+        if (!exists(name)) {
+            throw RpcException.invalidParams("There is no world called '" + name + "'. Existing worlds: "
+                    + String.join(", ", listWorlds()));
+        }
+        Minecraft.getInstance().createWorldOpenFlows().openWorld(name, () ->
+                ClientDevBridge.LOGGER.warn("Failed to open world {}", name));
+    }
+
+    /**
+     * Applies the determinism game rules and puts the player at a known spot.
+     * Run once the world has finished loading.
+     */
+    public static void applyDeterminism(@Nullable String extraSetup) {
+        for (String rule : DETERMINISM_GAMERULES) {
+            CommandRunner.run("gamerule " + rule);
+        }
+        CommandRunner.run("time set noon");
+        CommandRunner.run("weather clear");
+        CommandRunner.run("gamemode creative @s");
+        CommandRunner.run(String.format("fill %d %d %d %d %d %d minecraft:stone",
+                SPAWN_X - PLATFORM_RADIUS, PLATFORM_Y, SPAWN_Z - PLATFORM_RADIUS,
+                SPAWN_X + PLATFORM_RADIUS, PLATFORM_Y, SPAWN_Z + PLATFORM_RADIUS));
+        CommandRunner.run(String.format("setworldspawn %d %d %d", SPAWN_X, SPAWN_Y, SPAWN_Z));
+        CommandRunner.run("tp @s " + SPAWN_X + " " + SPAWN_Y + " " + SPAWN_Z + " 0 0");
+        if (extraSetup != null && !extraSetup.isBlank()) {
+            CommandRunner.run(extraSetup);
+        }
+    }
+
+}

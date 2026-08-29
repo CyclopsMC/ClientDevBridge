@@ -1,3 +1,10 @@
 plugins {
     id 'multiloader-loader-neoforge'
 }
+
+dependencies {
+    // The eval escape hatch is reached through javax.script, so Groovy is optional at compile time
+    // and only needed at runtime. Declaring it here puts it in the published POM's runtime scope,
+    // so a consumer that injects this artifact gets it transitively without knowing about it.
+    runtimeOnly "org.apache.groovy:groovy-jsr223:${groovy_version}"
+}

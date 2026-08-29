@@ -29,6 +29,11 @@ public class Reference {
      * Gates the {@code eval} method, which is a full scripting escape hatch.
      */
     public static final String PROPERTY_EVAL = "clientdevbridge.eval";
+    /**
+     * The consumer project's root directory, so the mod can find world templates committed there.
+     * Set by the generated init script; falls back to the run directory's grandparent.
+     */
+    public static final String PROPERTY_PROJECT_DIR = "clientdevbridge.projectDir";
 
     public static final int DEFAULT_PORT = 25599;
 

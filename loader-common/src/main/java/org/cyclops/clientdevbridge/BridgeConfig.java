@@ -13,19 +13,33 @@ public class BridgeConfig {
     private final boolean enabled;
     private final boolean evalEnabled;
     private final int port;
+    private final java.nio.file.Path projectDir;
 
-    public BridgeConfig(boolean enabled, boolean evalEnabled, int port) {
+    public BridgeConfig(boolean enabled, boolean evalEnabled, int port, java.nio.file.Path projectDir) {
         this.enabled = enabled;
         this.evalEnabled = evalEnabled;
         this.port = port;
+        this.projectDir = projectDir;
     }
 
     public static BridgeConfig fromSystemProperties() {
         return new BridgeConfig(
                 Boolean.parseBoolean(System.getProperty(Reference.PROPERTY_ENABLED, "false")),
                 Boolean.parseBoolean(System.getProperty(Reference.PROPERTY_EVAL, "false")),
-                parsePort(System.getProperty(Reference.PROPERTY_PORT))
+                parsePort(System.getProperty(Reference.PROPERTY_PORT)),
+                parseProjectDir(System.getProperty(Reference.PROPERTY_PROJECT_DIR))
         );
+    }
+
+    /**
+     * The run directory is typically {@code <project>/loader-<loader>/runs/client}, so without an
+     * explicit value the grandparent's parent is the best available guess.
+     */
+    static java.nio.file.Path parseProjectDir(String raw) {
+        if (raw != null && !raw.isBlank()) {
+            return java.nio.file.Paths.get(raw.trim()).toAbsolutePath().normalize();
+        }
+        return java.nio.file.Paths.get("").toAbsolutePath().normalize();
     }
 
     static int parsePort(String raw) {
@@ -53,6 +67,13 @@ public class BridgeConfig {
 
     public int getPort() {
         return this.port;
+    }
+
+    /**
+     * The consumer project's root, used to resolve {@code clientdevbridge/templates/<name>}.
+     */
+    public java.nio.file.Path getProjectDir() {
+        return this.projectDir;
     }
 
 }

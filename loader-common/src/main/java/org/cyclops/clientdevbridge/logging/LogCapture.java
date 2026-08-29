@@ -62,6 +62,8 @@ public class LogCapture {
 
     private static class RingAppender extends AbstractAppender {
 
+        private static final ThreadLocal<Boolean> REENTRANT = new ThreadLocal<>();
+
         private final LogRing ring;
         private final Consumer<String> onLine;
 
@@ -73,10 +75,25 @@ public class LogCapture {
 
         @Override
         public void append(LogEvent event) {
-            String line = format(event);
-            LogRing.Level level = LogRing.Level.parse(event.getLevel().name());
-            this.ring.add(level, line);
-            this.onLine.accept(line);
+            // Anything this appender does may itself log — a failed socket write, say — and Log4j
+            // would then call back into here on the same thread. Without this guard that is an
+            // infinite recursion, and Log4j only notices after printing a scary console error.
+            if (Boolean.TRUE.equals(REENTRANT.get())) {
+                return;
+            }
+            REENTRANT.set(Boolean.TRUE);
+            try {
+                String line = format(event);
+                LogRing.Level level = LogRing.Level.parse(event.getLevel().name());
+                this.ring.add(level, line);
+                // A dev client emits hundreds of TRACE lines a second. Buffering them is cheap;
+                // pushing every one of them to a notification is not, and nobody reads them.
+                if (level.atLeast(LogRing.Level.INFO)) {
+                    this.onLine.accept(line);
+                }
+            } finally {
+                REENTRANT.remove();
+            }
         }
 
         private static String format(LogEvent event) {
