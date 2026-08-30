@@ -34,14 +34,16 @@ repository needs no setup cannot ask every user for one.
 
 Two things to configure, once:
 
-1. In **ClientDevBridge-Releases**: Settings → Pages → deploy from branch `main`, folder `/` (root).
+1. In **ClientDevBridge-Releases**: Settings → Pages → deploy from branch `master`, folder `/` (root).
 2. In **this** repository: a secret **`RELEASES_TOKEN`** that can push to ClientDevBridge-Releases —
    a fine-grained PAT with Contents: read and write on that repository, or a GitHub App
    installation token. Without it the publish step skips itself rather than failing the build, so
    forks and unconfigured checkouts still go green.
 
 CI then publishes on every push to a `master*` branch: it clones the releases repository, runs
-`./gradlew publish` *into* that checkout, commits and pushes. Publishing into the existing
+`./gradlew publish` *into* that checkout, commits and pushes. It reads the branch to push to from
+the clone rather than naming one, so the releases repository can rename its default branch without
+this workflow knowing. Publishing into the existing
 checkout rather than into a fresh directory is deliberate — Gradle merges each artifact's
 `maven-metadata.xml` with the one already there, and that file is what makes a dynamic `+`
 version resolvable. Staging into an empty directory would quietly rewrite the version history
