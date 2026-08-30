@@ -519,6 +519,102 @@ both sides, at least two ticks and at most sixty, so a wrong-tool regression can
 
 ---
 
+## Token usage: what the bridge actually costs, and how to cut it
+
+The Integrated Dynamics clock, built a third time and instrumented. **4m 34s**, against 21m 33s the
+first time and 9m 41s the second. Every CLI invocation's output was byte-counted; tokens are
+estimated at four bytes each, which is close enough to rank things by.
+
+| | bytes | ~tokens |
+| --- | ---: | ---: |
+| Emitted by the CLI over the whole task (32 invocations) | 20,916 | 5,200 |
+| …of which two `--json` dumps, piped through `python3` and never read | 15,183 | 3,800 |
+| **Actually reached the agent's context** | **5,953** | **1,488** |
+| One screenshot read as an image (854×480) | — | 546 |
+| Screenshots read this run | 0 | 0 |
+
+Two things stand out immediately. The whole task cost about **1.5k tokens of bridge output** — the
+agent's own reasoning dwarfs it. And the single largest thing the bridge can emit is
+`--json snapshot`, at 11,741 bytes, which is more than everything else in the task put together.
+
+### The cost of asking the same question two ways
+
+| command | text | `--json` | ratio |
+| --- | ---: | ---: | ---: |
+| `snapshot` (a modded container screen) | 775 B | 11,741 B | **15×** |
+| `inventory` (one item) | 25 B | 2,909 B | 116× |
+| `status` | 709 B | 1,838 B | 2.6× |
+| `block 1 4 1` | 42 B | 198 B | 4.7× |
+
+`--json` is the right answer when a script has to assert on a field. It is the wrong answer when a
+human or a model is going to read it, and the gap is large enough that the choice matters more than
+anything else on this list.
+
+### 1. `--json` pretty-prints, and 42% of every payload is whitespace · cli · two lines
+
+`printJson` is `JSON.stringify(value, null, 2)`. On the snapshot above that is **5,017 bytes of
+indentation** — 43% of the payload, for nothing. Compact output is byte-for-byte the same
+information:
+
+```
+pretty-printed : 11,741 B  (~2,935 tokens)   <- today
+compact        :  6,724 B  (~1,681 tokens)
+```
+
+Pretty-printing earns its keep at a terminal a person is reading. The fix is to keep it there and
+drop it everywhere else: compact unless `process.stdout.isTTY`. Nothing else changes, no flag to
+learn, and every `--json` call in every script gets 43% cheaper.
+
+### 2. Empty container slots are 3.2 kB of the snapshot · cli
+
+39 of the 40 slots in that screen were empty, and each one costs about 80 bytes of
+`{"index":n,"item":null,"count":0,"x":..,"y":..,"hovered":false}`. The text outline has always
+omitted them, for exactly this reason; `--json` lists them because completeness was the point of
+`--json`.
+
+Both can be true. Omit empty slots by default and report `slotCount` alongside, so the grid is still
+derivable, with `--include-empty` for the caller that genuinely wants every rectangle. Filter in the
+CLI, not the mod: `screen.snapshot` stays complete, and only the presentation changes.
+
+Compounded with compact output: **11,741 B → 4,123 B, a 65% cut**, with no information a caller has
+actually wanted made unavailable.
+
+### 3. Screenshots are ~546 tokens each, and mostly avoidable · docs
+
+An 854×480 capture read as an image costs about 546 tokens. This run read **none**: `screenshot
+--diff` answered "did the lamp change" in one line, and `dev.prop(1,4,1,"lit")` answered "is it on
+now" in twenty bytes. The first run of this same task read about ten screenshots — call it 5.5k
+tokens spent looking at pictures to learn things the world state already knew.
+
+Nothing to build. `AGENT_WORKFLOW.md` should say, in order: assert on state with `eval` or `block`;
+assert on pixels with `compare` or `screenshot --diff`; **read** an image only when you genuinely do
+not know what you are looking for. And when you must read one, `--scale 0.5` quarters the pixel
+count and so the token cost, and `--region` narrows it further.
+
+### 4. `batch --quiet` is free and nobody knows · docs
+
+Three commands cost 105 bytes with the `$ command` echo and 0 with `--quiet`. On a fifty-line scene
+the echo is a few hundred wasted tokens every time. `--quiet` is the right default for a scene you
+have already built and are rebuilding; the echo earns its keep only while a batch is being debugged.
+
+### Not worth doing
+
+- **Shortening error messages.** The failed aim in this run cost about 450 bytes and saved a
+  round trip that would have cost more. Error text is the cheapest thing in the system relative to
+  what it prevents.
+- **Compressing `eval` results.** Nineteen calls cost 1,179 bytes between them. It is already the
+  cheapest way to ask the game a question.
+- **Reducing the number of commands further.** `batch` already collapsed this task from fifty
+  invocations to thirty-two, and the remaining ones each answer a distinct question.
+
+### The order
+
+1 and 2 are the same file and together cut the largest payload by two thirds. 3 and 4 are
+documentation, and 3 is worth more than either code change on a task that leans on screenshots —
+ten image reads is 5.5k tokens, which is three times what this entire run cost.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
