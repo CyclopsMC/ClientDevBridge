@@ -260,11 +260,12 @@ public class InputControl {
     /**
      * Holds a key down. Release is the caller's job, after the ticks it wants have elapsed.
      */
-    public static void setKeyHeld(int keyCode, boolean held) {
-        KeyMapping mapping = Keys.findMapping(keyCode);
+    public static void setKeyHeld(InputConstants.Key key, boolean held) {
+        KeyMapping mapping = Keys.findMapping(key);
         if (mapping == null) {
-            throw RpcException.illegalState("No key binding matches key code " + keyCode
-                    + ", so it cannot be held. Held keys are for movement and other bound actions.");
+            throw RpcException.illegalState("No key binding matches " + Keys.describe(key)
+                    + ", so it cannot be held. Held input is for movement, attack, use and other "
+                    + "bound actions -- try 'ATTACK', 'USE' or a movement key.");
         }
         KeyMapping.set(mapping.getDefaultKey(), held);
     }

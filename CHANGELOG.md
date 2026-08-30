@@ -6,6 +6,18 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 9 — making the loop faster
 
+- `input.hold` reaches the mouse bindings. Attack is bound to `key.mouse.left` and `Keys` answered a
+  keyboard code, so holding attack — which is how every block in the game is mined — could not be
+  expressed at all, nor could holding use: eating, drinking, drawing a bow, raising a shield.
+  `ATTACK`, `USE`, `PICK` and `MOUSE_LEFT`/`MOUSE_RIGHT`/`MOUSE_MIDDLE` all resolve now.
+- `world.break`: mining as a composite, because how long a block takes depends on the block and the
+  tool and that is the knowledge these composites exist to absorb. The destroy progress advances
+  once per tick and not in a loop — looping breaks the block, since an integrated server validates
+  loosely, but then the tool stops mattering. `ticks` and `drops` are reported, the latter with each
+  item's position, since a drop is thrown rather than placed.
+- `player.walkTo`: walking to a horizontal position, re-aimed each tick and leaving the pitch alone,
+  for when the movement is the thing being tested rather than the destination.
+
 - `player.useItem`: the right-click with nothing under the cursor, which is how a great many mods
   open an item's own screen and the one interaction that had no method — everything else takes a
   block position. It reports `aimedAt`, because a click aimed at a block interacts with the block

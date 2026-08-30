@@ -2,12 +2,14 @@ package org.cyclops.clientdevbridge.handler;
 
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
 import org.cyclops.clientdevbridge.mcadapter.Aim;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
 import org.cyclops.clientdevbridge.mcadapter.CommandRunner;
 import org.cyclops.clientdevbridge.mcadapter.Interaction;
 import org.cyclops.clientdevbridge.mcadapter.McAdapter;
+import org.cyclops.clientdevbridge.mcadapter.Mining;
 import org.cyclops.clientdevbridge.mcadapter.Polling;
 import org.cyclops.clientdevbridge.mcadapter.WorldControl;
 import org.cyclops.clientdevbridge.mcadapter.WorldQuery;
@@ -28,6 +30,18 @@ public class WorldHandler {
     public static final String DEFAULT_WORLD = "clientdevbridge";
     /** Generating and joining a world is slow under software rendering; be generous. */
     private static final long LOAD_TIMEOUT_MS = 180_000;
+
+    /**
+     * How long to keep mining before giving up: fifteen seconds.
+     *
+     * Generous on purpose. Obsidian with an iron pickaxe is the slow legitimate case, and a block
+     * that genuinely cannot be broken -- bedrock, or the wrong tool entirely -- should be reported
+     * as not broken rather than as a hang.
+     */
+    private static final int BREAK_TIMEOUT_TICKS = 300;
+
+    /** Long enough for the server's drop to reach the client, and short enough not to be felt. */
+    private static final int DROP_SETTLE_TICKS = 10;
 
     public static void register(Dispatcher dispatcher, Path projectDir) {
         dispatcher.register("world.reset", raw -> {
@@ -114,6 +128,60 @@ public class WorldHandler {
             int z = params.getInt("z");
             boolean nbt = params.getBoolean("nbt", false);
             return ClientThread.submit(() -> WorldQuery.block(new BlockPos(x, y, z), nbt));
+        });
+
+        // Breaking a block, which a single click cannot do: mining is a held action whose length
+        // depends on the block, the tool and whether the tool is even the right one. Holding attack
+        // for a fixed number of ticks would put that knowledge back on the caller, which is the
+        // thing these composites exist to avoid.
+        dispatcher.register("world.break", raw -> {
+            Params params = new Params(raw);
+            double[] pos = params.getNumberArray("blockPos", 3);
+            BlockPos blockPos = new BlockPos((int) pos[0], (int) pos[1], (int) pos[2]);
+            Aim aim = Aim.of(blockPos, params.getString("face", null),
+                    params.has("at") ? params.getNumberArray("at", 3) : null);
+            boolean approach = params.getBoolean("approach", true);
+            int timeoutTicks = params.getInt("timeoutTicks", BREAK_TIMEOUT_TICKS);
+
+            java.util.concurrent.atomic.AtomicInteger ticks = new java.util.concurrent.atomic.AtomicInteger();
+            CompletableFuture<String> before = ClientThread.submit(
+                    () -> WorldQuery.block(blockPos, false).get("state").getAsString());
+
+            return before.thenCompose(blockBefore -> ScreenHandler
+                    .aimAndClick(aim, approach, () -> Mining.start(aim))
+                    // awaitCondition runs its condition once per tick on the client thread, which
+                    // is exactly the cadence mining needs -- so the progress is advanced *in* the
+                    // condition. Looping instead would break the block inside a single tick, which
+                    // an integrated server accepts and which is not mining: the tool stops
+                    // mattering, and the tick count stops meaning anything.
+                    .thenCompose(ignored -> McAdapter.tickClock().awaitCondition(() -> {
+                        ticks.incrementAndGet();
+                        return Mining.advance(aim);
+                    }, timeoutTicks, null))
+                    // The drop is a server-side entity: it is spawned when the server agrees the
+                    // block broke, and reaches the client a few ticks after that. Reading straight
+                    // away reported "nothing dropped" for a block that had just dropped something.
+                    .thenCompose(broken -> McAdapter.tickClock().afterTicks(DROP_SETTLE_TICKS)
+                            .thenApply(ignored -> broken))
+                    .thenCompose(broken -> ClientThread.<Object>submit(() -> {
+                        Mining.stop();
+                        JsonObject result = Json.object();
+                        result.add("pos", Json.arrayOfNumbers(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
+                        result.addProperty("face", aim.face().getName());
+                        result.addProperty("broken", broken);
+                        // How long it took, which is the observable difference between the right
+                        // tool and the wrong one and the only thing that says mining happened at
+                        // all rather than the block being removed.
+                        result.addProperty("ticks", ticks.get());
+                        result.addProperty("blockBefore", blockBefore);
+                        result.addProperty("blockAfter",
+                                WorldQuery.block(blockPos, false).get("state").getAsString());
+                        result.addProperty("heldAfter", Interaction.describeHeld(InteractionHand.MAIN_HAND));
+                        // The drop is usually the point, and it is a server-side entity that
+                        // appears a moment after the block goes.
+                        result.add("drops", Mining.dropsNear(blockPos));
+                        return result;
+                    })));
         });
 
         // A right-click that is not about opening a GUI: placing a block or a cable part, using a

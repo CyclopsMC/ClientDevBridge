@@ -98,6 +98,34 @@ public class PlayerControl {
         return player != null && !player.onGround();
     }
 
+    /**
+     * Whether the player has reached a horizontal position, within a block.
+     *
+     * Horizontal only: walking does not control height, and insisting on a y would fail every time
+     * the route crosses a slab or a drop.
+     */
+    public static boolean hasReached(double x, double z, double within) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return false;
+        }
+        double dx = player.getX() - x;
+        double dz = player.getZ() - z;
+        return dx * dx + dz * dz <= within * within;
+    }
+
+    /**
+     * Faces a horizontal position without changing the pitch.
+     *
+     * {@link #lookAt} aims at a point, which for something on the ground tilts the camera down --
+     * and walking forward while looking down walks into the ground. Turning is the yaw alone.
+     */
+    public static void faceHorizontally(double x, double z) {
+        LocalPlayer player = ClientState.requirePlayer();
+        float yaw = (float) (Math.toDegrees(Math.atan2(z - player.getZ(), x - player.getX())) - 90.0d);
+        look(yaw, player.getXRot());
+    }
+
     public static void selectHotbarSlot(int slot) {
         if (slot < 0 || slot > 8) {
             throw RpcException.invalidParams("Parameter 'slot' must be a hotbar slot 0-8, but was " + slot);

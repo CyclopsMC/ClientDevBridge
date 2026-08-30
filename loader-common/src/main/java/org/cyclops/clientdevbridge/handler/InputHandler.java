@@ -150,15 +150,15 @@ public class InputHandler {
 
         dispatcher.register("input.hold", raw -> {
             Params params = new Params(raw);
-            int keyCode = Keys.toKeyCode(params.getString("key"));
+            com.mojang.blaze3d.platform.InputConstants.Key key = Keys.toBinding(params.getString("key"));
             int ticks = params.getInt("ticks");
             if (ticks < 1 || ticks > WaitHandler.MAX_TICKS) {
                 throw RpcException.invalidParams("Parameter 'ticks' must be between 1 and "
                         + WaitHandler.MAX_TICKS + ", but was " + ticks);
             }
-            return ClientThread.run(() -> InputControl.setKeyHeld(keyCode, true))
+            return ClientThread.run(() -> InputControl.setKeyHeld(key, true))
                     .thenCompose(ignored -> McAdapter.tickClock().afterTicks(ticks))
-                    .thenCompose(ignored -> ClientThread.run(() -> InputControl.setKeyHeld(keyCode, false)))
+                    .thenCompose(ignored -> ClientThread.run(() -> InputControl.setKeyHeld(key, false)))
                     .thenApply(ignored -> afterInput());
         });
     }
