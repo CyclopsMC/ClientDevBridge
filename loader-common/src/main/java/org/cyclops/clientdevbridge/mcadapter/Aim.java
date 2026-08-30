@@ -92,8 +92,10 @@ public class Aim {
      *
      * <ul>
      *   <li>A side face: back off along its normal, standing level with the block's bottom.</li>
-     *   <li>The top face: stand beside the block and look down across it. Standing directly above
-     *       would mean standing on the block, which for a thin one is a fall.</li>
+     *   <li>The top face: stand on the block and look straight down. A ray that comes in at an
+     *       angle carries on through the block and out the far side, where it can clip a part on
+     *       another face -- so on a cable, asking for the top would open whatever was on the
+     *       north.</li>
      *   <li>The bottom face: there is nowhere good. The player has to be under the block, which in
      *       a flat test world is inside the ground -- survivable in creative, and the ray is
      *       unaffected, but a caller that knows its own scene should place the player itself and
@@ -103,19 +105,24 @@ public class Aim {
      * @return the feet position, which is what a teleport takes
      */
     public double[] standingPosition() {
-        // Level with the block's own bottom: that is where a player walking up to it stands.
-        // A block higher and they are in the air, and start falling before the click.
-        double standY = this.pos.getY();
         switch (this.face) {
+            // Straight above, looking straight down. Standing off to one side and looking across
+            // would be a shallow ray, and a shallow ray does not stop at the face it was aimed at:
+            // it carries on through the block and out the far side, where it can clip a part on
+            // one of the other faces. A vertical ray meets the top face first and the block's
+            // centre second, which is the order a caller asking for the top face means.
             case UP:
-                return new double[] { this.point.x, standY, this.point.z + STANDING_DISTANCE - 1.0d };
+                return new double[] { this.point.x, this.pos.getY() + 1.0d, this.point.z };
             case DOWN:
                 return new double[] { this.point.x, this.point.y - STANDING_DISTANCE - PlayerControl.EYE_HEIGHT,
                         this.point.z };
+            // A side face is looked at from standing height, level with the block's own bottom --
+            // where a player walking up to it stands. That is a shallow ray too, but it enters
+            // through the aimed face, which is what decides the interaction.
             default:
                 return new double[] {
                         this.point.x + this.face.getStepX() * STANDING_DISTANCE,
-                        standY,
+                        this.pos.getY(),
                         this.point.z + this.face.getStepZ() * STANDING_DISTANCE };
         }
     }
