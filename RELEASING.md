@@ -43,9 +43,43 @@ deliberately matches every other Cyclops artifact.
 git checkout <branch>
 # update CHANGELOG.md, commit
 git push
+git tag <mod_version>-mc<minecraft_version>    # e.g. 1.0.0-mc26.2
+git push --tags
 ```
 
-The push publishes. To make it a tagged release, tag the same commit and push the tag.
+The push publishes to the Maven. The tag additionally creates a **GitHub release** with the three
+loader jars attached.
+
+Tags must be distinct per line, because all three branches tag in the same repository. The jars
+themselves are already unambiguous — every filename carries its Minecraft version and loader — so
+the only thing needing a convention is the tag name.
+
+## Why the release assets are not how the mod is resolved
+
+The jars are attached to releases for humans: to download a build without a login, and to pin a
+known one. They are deliberately **not** what `clientdevbridge-cli` resolves against.
+
+The CLI injects a Gradle *coordinate*, and Gradle resolves it. A release asset is not a Maven
+repository — no metadata, no version layout — so pointing at one means the CLI downloading, caching,
+verifying and version-selecting the jar itself. That is work Gradle already does correctly, it only
+helps consumers who go through the CLI, and it would need the CLI to either query the GitHub API
+(60 requests an hour unauthenticated, shared per IP, which CI runners exhaust) or hard-code exactly
+the version knowledge the design keeps to one table.
+
+The problem worth solving is the one underneath: **GitHub Packages needs a token even for public
+packages.** That belongs at the Maven layer, not in the CLI. Two ways out, both leaving the CLI
+untouched apart from one URL in `clientdevbridge-cli/src/initscript.ts`:
+
+- **A static Maven on GitHub Pages.** Publish the same repository layout to a `gh-pages` branch (or
+  a dedicated `CyclopsMC/maven` repository) and serve it anonymously over HTTPS. Cheapest by far;
+  the one wrinkle is that three branches deploying concurrently need a retry-and-rebase, or a
+  separate repository to avoid pushing over each other.
+- **Maven Central.** Properly anonymous, permanent and mirrored, at the cost of a Sonatype account,
+  namespace verification for `org.cyclops`, and GPG signing. The right answer for something meant
+  to be depended on widely; heavier than a dev-only tool usually justifies.
+
+Until one of those happens, a consumer needs `MAVEN_USERNAME` / `MAVEN_KEY` in their environment —
+the same credentials they already need for CyclopsCore.
 
 ## Changes that touch more than one branch
 
