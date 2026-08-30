@@ -160,6 +160,37 @@ clientdevbridge block 0 4 2 --nbt
 For a scene too fiddly to script, commit a world under `clientdevbridge/templates/<name>/` in your
 repository and use `world-reset --template <name>`.
 
+### Interacting with an item rather than a block
+
+Some mods' main entry point is an item you right-click holding nothing in particular — an Ability
+Bottle, a wrench, a book. There is no `use-item` command yet; the way through is the in-world click,
+which falls back to the use keybinding when no screen is open:
+
+```bash
+clientdevbridge click --at 213,120 --button 1
+clientdevbridge wait --screen ContainerScreenAbilityContainer --timeout 5000
+```
+
+The `--at` is ignored in this case. The `wait` is not optional: an in-world click is queued for the
+next tick, so the command reports `screen: none` even when it opened one.
+
+### Reading a mod's own data off an item
+
+`inventory --json` prints a data component through its `toString`, which for most mod types is a
+class name and an identity hash — no use for telling a full container from an empty one. Groovy
+dispatches on the object it is handed, so a script can call the mod's own methods without naming any
+of its classes:
+
+```bash
+clientdevbridge eval '
+def store = player.getMainHandItem().getComponents()
+    .find { it.value().getClass().getSimpleName().contains("AbilityStore") }?.value()
+store?.getAbilities()'
+```
+
+This needs nothing from the mod. It is the general escape hatch for any modded data the typed
+commands do not describe.
+
 ### Interacting with a particular side of a block
 
 `use` is a right-click with whatever is held, and both it and `open-gui` take `--face` (or `--at` for
