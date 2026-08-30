@@ -163,23 +163,41 @@ repository and use `world-reset --template <name>`.
 ### Interacting with an item rather than a block
 
 Some mods' main entry point is an item you right-click holding nothing in particular — an Ability
-Bottle, a wrench, a book. There is no `use-item` command yet; the way through is the in-world click,
-which falls back to the use keybinding when no screen is open:
+Bottle, a wrench, a book:
 
 ```bash
-clientdevbridge click --at 213,120 --button 1
-clientdevbridge wait --screen ContainerScreenAbilityContainer --timeout 5000
+clientdevbridge use-item --wait-screen
+clientdevbridge open-gui               # the same thing: no coordinates means the held item
 ```
 
-The `--at` is ignored in this case. The `wait` is not optional: an in-world click is queued for the
-next tick, so the command reports `screen: none` even when it opened one.
+**A right-click aimed at a block interacts with the block**, and the item is never reached — what a
+player gets, and the likeliest reason an item looks like it did nothing. `use-item` reports what it
+was aimed at and warns when something took the click:
+
+```console
+$ clientdevbridge use-item
+used minecraft:writable_book x1 (aimed at block); screen: none
+warning: The player was looking at a block, which takes a right-click before the held item does.
+Aim at nothing first (`look --pitch -90`), or pass --hand main to use the item regardless.
+```
+
+`--hand main` (or `off`) skips that decision and uses the item outright, which is also the only way
+to reach an off-hand item.
 
 ### Reading a mod's own data off an item
 
 `inventory --json` prints a data component through its `toString`, which for most mod types is a
-class name and an identity hash — no use for telling a full container from an empty one. Groovy
-dispatches on the object it is handed, so a script can call the mod's own methods without naming any
-of its classes:
+class name and an identity hash — no use for telling a full container from an empty one. A mod fixes
+this for its own items by registering an `ItemExtractor` (see `docs/PROTOCOL.md`); the vanilla cases
+are covered already:
+
+```console
+$ clientdevbridge --json inventory
+… "item": "minecraft:shulker_box", "details": { "contains": ["minecraft:diamond x3"], … }
+```
+
+For a mod that has registered nothing, Groovy dispatches on the object it is handed, so a script can
+call the mod's own methods without naming any of its classes:
 
 ```bash
 clientdevbridge eval '

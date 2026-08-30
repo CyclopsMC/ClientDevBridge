@@ -92,6 +92,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `input.hold` | `{ key, ticks }` | `{ screenClass, mouse }` |
 | `player.look` | `{ yaw, pitch }` or `{ at: [x,y,z] }` | `{ pos, yaw, pitch }` |
 | `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived, requested, falling }` |
+| `player.useItem` | `{ hand?: "auto"\|"main"\|"off" }` | `{ screenClass, mouse, held, aimedAt, hand, screenOpened }` |
 | `player.inventory` | – | `{ slots: [...], selected, carried }` |
 | `player.hotbar` | `{ slot }` | `{ selected }` |
 | `world.reset` | `{ name?, template?, setup? }` | `{ world, template, spawn, seed, platformY, platformRadius }` |
@@ -108,6 +109,12 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `log.tail` | `{ lines?, filter?, level? }` | `{ lines: [string], level, buffered }` |
 
 ### Clicking a slot
+
+`input.mouseClick` with **no screen open** is an in-world click: button 0 attacks, button 1 uses.
+That branch queues a key binding rather than acting, so its reply is also sent five ticks later —
+without the wait it reported `screen: none` at the moment a click opened one, which is
+indistinguishable from the click having done nothing. Prefer `player.useItem`, which says what it
+was aimed at.
 
 `input.mouseClick` cannot express a shift-click, and no parameter would fix it. A screen decides
 what a click meant *before* it acts: `AbstractContainerScreen.mouseClicked` works out a `ClickType`
@@ -127,6 +134,24 @@ taken afterwards shows the hover highlight where the click landed.
 What this does not do is run a screen's own `slotClicked` override, and there is no way to: it is
 `protected`. A mod that filters slot moves there is bypassed. Nothing found so far does; the
 alternative is a mixin on `hasShiftDown`, which this mod does not need yet.
+
+### Using the held item
+
+`player.useItem` is the right-click with nothing under the cursor — how a great many mods open an
+item's own screen, and the one interaction that had no method: everything else takes a block
+position.
+
+With `hand: "auto"` (the default) it presses the use key binding, so the game makes the same
+decision it makes for a player: a block or an entity under the crosshair takes the click and the
+held item is never reached. `aimedAt` reports which — `block`, `entity` or `miss` — because "the
+item did nothing" and "you were looking at a chest" are the same reply otherwise.
+
+`hand: "main"` or `"off"` calls the game mode's use directly, skipping that decision. It is the way
+to reach an off-hand item, which a player cannot aim at, and the way to use an item while facing a
+block.
+
+The key binding is *queued*: Minecraft processes it in the next tick, and what it does then may be
+a server round trip. The reply is sent five ticks later, the same allowance `world.use` makes.
 
 ### Teleporting
 
@@ -267,6 +292,26 @@ SnapshotExtractors.register(MyFancyWidget.class, (widget, node) -> {
 Every matching extractor in the class hierarchy runs, base classes first, so a specific extractor
 can refine what a general one set. An extractor that throws is reported in the node's
 `extra.extractorError` rather than failing the whole snapshot.
+
+### Describing your own items
+
+`ItemExtractors` is the item counterpart of `BlockExtractors`. A stack is described by its id,
+count, name and its components' combined `toString`, and that last part is the problem: a data
+component of a mod's own type prints as a class name and an identity hash, so the one field that
+says what is *in* a container item is unreadable. An Everlasting Abilities bottle full of abilities
+and an empty one describe identically.
+
+```java
+ItemExtractors.register(ItemAbilityBottle.class, (stack, details) ->
+        details.addProperty("abilities", String.valueOf(stack.get(ABILITY_STORE).getAbilities())));
+```
+
+Whatever it writes appears as `details` on every stack description at once — `player.inventory`,
+`screen.snapshot`'s container slots, and the held-item fields of `world.use`. Registration is by
+`Item` class and walks up the hierarchy, so registering against a mod's base item covers all of them.
+
+ClientDevBridge registers a few itself, for the vanilla cases where the default is unhelpful: what
+block a `BlockItem` places, what a container item holds, and a damaged item's durability.
 
 ### Describing your own blocks
 

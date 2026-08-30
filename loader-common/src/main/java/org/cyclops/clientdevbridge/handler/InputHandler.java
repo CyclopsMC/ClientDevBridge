@@ -3,7 +3,9 @@ package org.cyclops.clientdevbridge.handler;
 import com.google.gson.JsonObject;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
+import net.minecraft.world.InteractionHand;
 import org.cyclops.clientdevbridge.mcadapter.Geometry;
+import org.cyclops.clientdevbridge.mcadapter.Interaction;
 import org.cyclops.clientdevbridge.mcadapter.InputControl;
 import org.cyclops.clientdevbridge.mcadapter.Keys;
 import org.cyclops.clientdevbridge.mcadapter.McAdapter;
@@ -37,8 +39,34 @@ public class InputHandler {
                 throw RpcException.invalidParams("Parameter 'button' must be 0 (left), 1 (right) or 2 (middle), "
                         + "but was " + button);
             }
-            return ClientThread.run(() -> InputControl.mouseClick(point.x(), point.y(), button))
-                    .thenApply(ignored -> afterInput());
+            return ClientThread.submit(() -> InputControl.mouseClick(point.x(), point.y(), button))
+                    .thenCompose(InputHandler::settle);
+        });
+
+        dispatcher.register("player.useItem", raw -> {
+            Params params = new Params(raw);
+            String hand = params.getEnum("hand", "auto", "auto", "main", "off");
+            return ClientThread.submit(() -> {
+                String held = Interaction.describeHeld(InteractionHand.MAIN_HAND);
+                String aimedAt = InputControl.aimedAt();
+                InputControl.useItem(switch (hand) {
+                    case "main" -> InteractionHand.MAIN_HAND;
+                    case "off" -> InteractionHand.OFF_HAND;
+                    default -> null;
+                });
+                return held + "\u0000" + aimedAt;
+            }).thenCompose(held -> settleInWorld().<Object>thenApply(ignored -> {
+                JsonObject result = afterInput();
+                String[] parts = held.split("\u0000", 2);
+                result.addProperty("held", parts[0]);
+                // What the player was looking at when the click went out. On 'auto' a block or an
+                // entity takes the click first and the item is never reached, exactly as it would
+                // be for a player -- so this is the answer to "why did my item do nothing".
+                result.addProperty("aimedAt", parts[1]);
+                result.addProperty("hand", hand);
+                result.addProperty("screenOpened", ClientState.screenClass() != null);
+                return result;
+            }));
         });
 
         dispatcher.register("input.slotClick", raw -> {
@@ -129,6 +157,27 @@ public class InputHandler {
      * Every input method answers with where the client ended up, so the caller can see what its
      * click did without a second round trip.
      */
+    /**
+     * Reports a click, waiting first if it went to the world.
+     *
+     * A click on a screen is handled there and then, so reading the state straight afterwards is
+     * accurate. A click with no screen open is not: it queues a key binding that Minecraft
+     * processes in the next tick, and what that does may itself be a server round trip. Reading
+     * immediately reported {@code screen: none} at the moment a click opened one -- true when it
+     * was measured, wrong by the time anyone saw it, and indistinguishable from the click having
+     * done nothing at all.
+     */
+    private static java.util.concurrent.CompletableFuture<Object> settle(boolean wentToTheWorld) {
+        return wentToTheWorld
+                ? settleInWorld().thenCompose(ignored -> ClientThread.<Object>submit(InputHandler::afterInput))
+                : ClientThread.<Object>submit(InputHandler::afterInput);
+    }
+
+    /** The same five ticks {@code world.use} allows, and for the same server round trip. */
+    private static java.util.concurrent.CompletableFuture<Long> settleInWorld() {
+        return McAdapter.tickClock().afterTicks(5);
+    }
+
     private static JsonObject afterInput() {
         JsonObject result = Json.object();
         result.addProperty("screenClass", ClientState.screenClass());

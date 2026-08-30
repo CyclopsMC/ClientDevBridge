@@ -232,6 +232,45 @@ MOVED="$("$CLI" --project "$CONSUMER" --json snapshot \
 echo "quick_move moved the stack out of the inventory and into the container"
 "$CLI" --project "$CONSUMER" close-screen >/dev/null
 
+log "Phase 3: using the item in your hand"
+# Every other use command takes a block position, so a mod whose entry point is an item had no
+# command at all. A writable book is the vanilla item that opens a screen on use.
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:writable_book 1" >/dev/null
+# Aimed at the sky: a right-click at a block interacts with the block and never reaches the item,
+# which is what a player gets and the likeliest reason an item looks like it did nothing.
+"$CLI" --project "$CONSUMER" look --pitch -90 >/dev/null
+"$CLI" --project "$CONSUMER" use-item --wait-screen | tee /tmp/cdb-use-item.txt
+grep -q "BookEditScreen" /tmp/cdb-use-item.txt || fail "use-item did not open the book"
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+# open-gui with no coordinates is the same thing, so the wait-for-screen composite works for items.
+"$CLI" --project "$CONSUMER" open-gui | grep -q "BookEditScreen" || fail "open-gui with no block did not use the held item"
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+# And the in-world click has to report the screen it opened. It queues a key binding processed on
+# the next tick, and reading before that reported 'screen: none' at the moment it opened one.
+"$CLI" --project "$CONSUMER" click --at 213,120 --button 1 | grep -q "BookEditScreen" \
+  || fail "an in-world click still reports the state before the game acted on it"
+echo "an item opens its screen, by three routes, and each says so"
+# And a use aimed at a block says why the item was not reached, rather than reporting nothing.
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+"$CLI" --project "$CONSUMER" look --at 8,4,2 >/dev/null
+AIMED="$("$CLI" --project "$CONSUMER" use-item 2>&1 || true)"
+grep -q "aimed at block" <<<"$AIMED" || fail "use-item did not report what took the click: $AIMED"
+echo "a use aimed at a block says so"
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:air" >/dev/null
+
+log "Phase 3: a container item says what is inside it"
+# The components field is a toString, which for a container is unreadable -- so a full shulker box
+# and an empty one used to describe identically. This is the item counterpart of BlockExtractors.
+"$CLI" --project "$CONSUMER" command 'give @s minecraft:shulker_box[minecraft:container=[{slot:0,item:{id:"minecraft:diamond",count:3}}]] 1' >/dev/null
+INSIDE="$("$CLI" --project "$CONSUMER" --json inventory \
+  | python3 -c "import json,sys; print(next((json.dumps(s.get('details')) for s in json.load(sys.stdin)['slots'] if s['item'] == 'minecraft:shulker_box'), 'missing'))")"
+grep -q "minecraft:diamond x3" <<<"$INSIDE" \
+  || fail "the shulker box's contents are not described: $INSIDE"
+grep -q '"places": "minecraft:shulker_box"' <<<"$INSIDE" \
+  || fail "the block a BlockItem places is not described: $INSIDE"
+echo "a container item reports its contents"
+
 log "Phase 2: a teleport reports where the player stays, not where they were dropped"
 # The arrival condition used to be satisfied while the player was still falling, so the reply
 # described a position they held for one tick and every screenshot after it was of somewhere else.
