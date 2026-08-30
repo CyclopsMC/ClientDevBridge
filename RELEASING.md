@@ -35,10 +35,38 @@ repository needs no setup cannot ask every user for one.
 Two things to configure, once:
 
 1. In **ClientDevBridge-Releases**: Settings → Pages → deploy from branch `master`, folder `/` (root).
-2. In **this** repository: a secret **`RELEASES_TOKEN`** that can push to ClientDevBridge-Releases —
-   a fine-grained PAT with Contents: read and write on that repository, or a GitHub App
-   installation token. Without it the publish step skips itself rather than failing the build, so
-   forks and unconfigured checkouts still go green.
+2. A **deploy key** so this repository's CI can push to that one:
+
+   ```bash
+   ssh-keygen -t ed25519 -C "ClientDevBridge CI" -f releases_deploy_key -N ""
+   ```
+
+   - Public half (`releases_deploy_key.pub`) → **ClientDevBridge-Releases** → Settings → Deploy keys
+     → Add, **with "Allow write access" ticked**.
+   - Private half (`releases_deploy_key`) → **this** repository → Settings → Secrets → Actions, as
+     `RELEASES_DEPLOY_KEY`. Paste the whole file, including the BEGIN and END lines.
+   - Delete both local files afterwards.
+
+   Without the secret the publish step skips itself rather than failing the build, so forks and
+   unconfigured checkouts still go green.
+
+### Why a credential is needed at all
+
+The automatic `GITHUB_TOKEN` that Actions provides is scoped to the repository running the
+workflow. It cannot push to another repository, no matter who owns it or how the permissions block
+is written — so publishing from ClientDevBridge into ClientDevBridge-Releases needs a credential of
+its own. That is a GitHub constraint, not a choice.
+
+A **deploy key** is the smallest credential that does the job. It grants write to exactly one
+repository and nothing else, it belongs to the repository rather than to a person — so it does not
+break when someone leaves the organisation — and it does not expire. A fine-grained PAT would also
+work and is strictly worse on all three counts; a GitHub App is better still for an organisation
+that already has one, at the cost of an installation-token exchange in the workflow.
+
+The only genuinely credential-free option is to publish the Maven into a `gh-pages` branch of
+**this** repository, where `GITHUB_TOKEN` is enough. That was rejected on purpose: every artifact
+ever published would then live in the source repository's history, and everyone who clones it to
+work on the mod would pay for that forever.
 
 CI then publishes on every push to a `master*` branch: it clones the releases repository, runs
 `./gradlew publish` *into* that checkout, commits and pushes. It reads the branch to push to from

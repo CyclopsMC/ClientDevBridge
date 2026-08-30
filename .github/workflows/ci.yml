@@ -15,7 +15,7 @@ jobs:
       # Lifted to the job so that a step's `if:` can test it. The `secrets` context is not in scope
       # for a step-level `if`, and a step's own `env:` block is not in scope for its own `if`
       # either -- both read as empty, and the step silently never runs.
-      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      RELEASES_DEPLOY_KEY: ${{ secrets.RELEASES_DEPLOY_KEY }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -71,22 +71,38 @@ jobs:
         # public packages -- which every consumer would otherwise have to set up before they could
         # launch a client.
         #
+        # Authenticated with a deploy key rather than a personal access token. A credential of some
+        # kind is unavoidable: the automatic GITHUB_TOKEN is scoped to the repository running the
+        # workflow and cannot push to another one, whoever owns it. A deploy key is the smallest
+        # credential that does the job -- it grants write to exactly this one repository, belongs to
+        # no user account, and does not expire.
+        #
         # The releases repository is checked out and published *into*, rather than staged fresh:
         # Gradle merges each artifact's maven-metadata.xml with the one already there, and that
         # file is what makes dynamic versions ('+') resolvable. Staging into an empty directory
         # would silently rewrite the version history down to whatever this run built.
         #
-        # The token is tested in the condition rather than in the script so that a fork, or this
+        # The key is tested in the condition rather than in the script so that a fork, or this
         # repository before the secret is configured, skips the step instead of failing the build.
-        if: startsWith(github.ref, 'refs/heads/master') && env.RELEASES_TOKEN != ''
+        if: startsWith(github.ref, 'refs/heads/master') && env.RELEASES_DEPLOY_KEY != ''
         run: |
           set -euo pipefail
+          KEY_FILE="$RUNNER_TEMP/releases_deploy_key"
+          install -m 600 /dev/null "$KEY_FILE"
+          printf '%s\n' "$RELEASES_DEPLOY_KEY" > "$KEY_FILE"
+          mkdir -p ~/.ssh
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          # IdentitiesOnly stops ssh from offering any other key the runner happens to have and
+          # being rejected for too many attempts before it reaches this one.
+          export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes"
+
           RELEASES_DIR="$RUNNER_TEMP/releases"
           # Not a shallow clone: the retry below rebases, and rebasing across a shallow boundary is
           # the kind of thing that works until the day it does not.
-          git clone "https://x-access-token:${RELEASES_TOKEN}@github.com/CyclopsMC/ClientDevBridge-Releases.git" \
-            "$RELEASES_DIR"
+          git clone git@github.com:CyclopsMC/ClientDevBridge-Releases.git "$RELEASES_DIR"
           cd "$RELEASES_DIR"
+          # Read rather than named, so the releases repository can rename its default branch
+          # without this workflow knowing.
           BRANCH="$(git symbolic-ref --short HEAD)"
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
