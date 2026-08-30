@@ -41,7 +41,7 @@ public class Onboarding {
         // have to be rescued the same way -- whichever directory it actually turns out to be.
         minecraft.options.onboardAccessibility = false;
         minecraft.options.save();
-        minecraft.setScreen(new TitleScreen(true));
+        minecraft.setScreenAndShow(new TitleScreen(true));
         if (!dismissed) {
             dismissed = true;
             ClientDevBridge.LOGGER.info("{} dismissed the accessibility onboarding screen, which waits for a "
