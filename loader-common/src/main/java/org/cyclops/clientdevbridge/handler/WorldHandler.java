@@ -150,7 +150,8 @@ public class WorldHandler {
                     new java.util.concurrent.atomic.AtomicReference<>("NONE");
             return snapshotBefore.thenCompose(before -> ScreenHandler
                     .aimAndClick(aim, approach,
-                            () -> outcome.set(Interaction.useOn(aim, Interaction.hand(hand)).toString()))
+                            () -> outcome.set(Interaction.describeResult(
+                                    Interaction.useOn(aim, Interaction.hand(hand)))))
                     // The result of a use is a server round trip away: a placed part, a changed
                     // block and an opened screen all arrive later than the click returns.
                     .thenCompose(ignored -> McAdapter.tickClock().afterTicks(5))
