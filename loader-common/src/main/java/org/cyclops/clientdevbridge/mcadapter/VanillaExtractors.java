@@ -12,19 +12,22 @@ import net.minecraft.client.gui.components.MultiLineTextWidget;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.components.tabs.TabNavigationBar;
 import net.minecraft.client.gui.components.Tooltip;
+import org.cyclops.clientdevbridge.snapshot.ItemExtractors;
 import org.cyclops.clientdevbridge.snapshot.SnapshotExtractors;
 
 /**
- * Snapshot detail for the vanilla widget types.
+ * Snapshot detail for the vanilla widget and item types.
  *
  * The exact set of classes differs between Minecraft versions, which is why this lives in
- * {@code mcadapter} — the registry and the node model it feeds do not change.
+ * {@code mcadapter} — the registries and the node model they feed do not change.
  *
  * @author rubensworks
  */
 public class VanillaExtractors {
 
     public static void registerAll() {
+        registerItems();
+
         SnapshotExtractors.register(Button.class, (button, node) ->
                 node.extra("kind", "button"));
 
@@ -87,6 +90,35 @@ public class VanillaExtractors {
             Tooltip tooltip = TooltipCapture.attachedTooltip(widget);
             if (tooltip != null) {
                 node.extra("tooltip", TooltipCapture.describe(tooltip));
+            }
+        });
+    }
+
+    /**
+     * Item detail for the vanilla types whose default description hides what matters.
+     *
+     * A stack is described by its id, count, name and the components' combined {@code toString}.
+     * For a container item that last part is the only field that says what is inside, and it is
+     * unreadable — so a shulker box with four stacks in it and an empty one describe identically,
+     * which is exactly the case {@link ItemExtractors} exists for.
+     */
+    private static void registerItems() {
+        ItemExtractors.register(net.minecraft.world.item.BlockItem.class, (stack, details) ->
+                details.addProperty("places", net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                        .getKey(((net.minecraft.world.item.BlockItem) stack.getItem()).getBlock()).toString()));
+
+        ItemExtractors.register(net.minecraft.world.item.Item.class, (stack, details) -> {
+            net.minecraft.world.item.component.ItemContainerContents contents =
+                    stack.get(net.minecraft.core.component.DataComponents.CONTAINER);
+            if (contents != null) {
+                com.google.gson.JsonArray inside = new com.google.gson.JsonArray();
+                contents.nonEmptyItemCopyStream().forEach(held -> inside.add(
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem())
+                                + " x" + held.getCount()));
+                details.add("contains", inside);
+            }
+            if (stack.isDamaged()) {
+                details.addProperty("damage", stack.getDamageValue() + "/" + stack.getMaxDamage());
             }
         });
     }

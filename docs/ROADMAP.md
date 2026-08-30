@@ -315,6 +315,8 @@ the only one that made the task harder rather than merely less pleasant.
 
 ### 1. There is no way to use the item in your hand · cli · the real gap
 
+> **Shipped.** `player.useItem`, `clientdevbridge use-item`, and `open-gui` with no coordinates.
+
 Opening the Ability Bottle is a right-click holding it, aimed at nothing. Every use command this CLI
 has takes a block position: `use <x> <y> <z>`, `open-gui <x> <y> <z>`, `inspect-gui <x> <y> <z>`.
 There is no command for the plainest interaction in the game.
@@ -331,6 +333,8 @@ saying "the held item", so the composite that waits for the screen works for ite
 
 ### 2. An in-world click reports the state before the game has acted · cli and mod
 
+> **Shipped.** The no-screen branch settles for five ticks, the same allowance `world.use` makes.
+
 `click --button 1` answered `screen: none` at the moment it opened a screen. Nothing is wrong with
 the value — it is read immediately, and the keybinding it queued is processed on the next tick, so
 "none" was true when it was measured and false a frame later.
@@ -344,6 +348,8 @@ way `world.use` already does for a block interaction. `afterInput` becomes the s
 know which branch it took.
 
 ### 3. A mod's data components are opaque in `inventory` and `snapshot` · mod
+
+> **Shipped.** `ItemExtractors`, merged into `describeStack`, with vanilla registrations for containers, block items and damage.
 
 `inventory --json` reported the bottle's contents as
 `everlastingabilities:ability_store=>org.cyclops.everlastingabilities.api.capability.DefaultMutableAbilityStore@0`
@@ -370,6 +376,18 @@ store.getAbilities()          // []
 ```
 
 That is how the bottle was confirmed empty, and it needs no support from the mod at all.
+
+### What the build added to the plan
+
+The e2e suite failed the first time it ran, and the reason was not a bug: the player was still
+standing at the chest from the phase before, so the right-click hit the *block* and the held item
+was never reached. That is exactly what a player gets, and it is the single most confusing way for
+`use-item` to appear not to work — the reply was "screen: ContainerScreen" with no hint that the
+item had nothing to do with it.
+
+So the result carries `aimedAt` (`block`, `entity` or `miss`), and the CLI warns when something took
+the click before the item could. "The item did nothing" and "you were looking at a chest" are the
+same reply otherwise.
 
 ### 4. Nothing reads a list that is drawn rather than built from widgets · nothing to build yet
 
