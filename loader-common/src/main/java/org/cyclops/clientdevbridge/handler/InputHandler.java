@@ -46,6 +46,11 @@ public class InputHandler {
         dispatcher.register("player.useItem", raw -> {
             Params params = new Params(raw);
             String hand = params.getEnum("hand", "auto", "auto", "main", "off");
+            // A screen opened by the server -- which is every container screen, and so most of the
+            // interesting ones -- arrives when the OpenScreen packet does, which is not reliably
+            // inside the settle window. Checking once after five ticks reported "no screen opened"
+            // for an item that had opened one, which is worse than not offering the wait at all.
+            int waitScreenTicks = params.getInt("waitScreenTicks", 0);
             return ClientThread.submit(() -> {
                 String held = Interaction.describeHeld(InteractionHand.MAIN_HAND);
                 String aimedAt = InputControl.aimedAt();
@@ -55,7 +60,12 @@ public class InputHandler {
                     default -> null;
                 });
                 return held + "\u0000" + aimedAt;
-            }).thenCompose(held -> settleInWorld().<Object>thenApply(ignored -> {
+            }).thenCompose(held -> settleInWorld()
+                    .thenCompose(ignored -> waitScreenTicks > 0
+                            ? McAdapter.tickClock().awaitCondition(
+                                    () -> ClientState.screenClass() != null, waitScreenTicks, null)
+                            : java.util.concurrent.CompletableFuture.completedFuture(false))
+                    .<Object>thenApply(ignored -> {
                 JsonObject result = afterInput();
                 String[] parts = held.split("\u0000", 2);
                 result.addProperty("held", parts[0]);
