@@ -181,6 +181,38 @@ if "$CLI" --project "$CONSUMER" compare e2e-scene >/dev/null 2>&1; then
 fi
 echo "compare correctly detected a changed scene"
 
+log "Phase 3: aiming an interaction at a point on a block"
+# A chiseled bookshelf routes a right-click to one of six slots by where on its front face the hit
+# landed, which is the same mechanism a multipart block uses to pick a part -- and vanilla, so this
+# runs on every branch with no extra mod. Without --at every click would land dead centre and only
+# ever reach one slot.
+"$CLI" --project "$CONSUMER" setblock 4 4 2 "minecraft:chiseled_bookshelf[facing=south]"
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:book 6" >/dev/null
+"$CLI" --project "$CONSUMER" use 4 4 2 --at 4.2,4.8,3
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:book 6" >/dev/null
+"$CLI" --project "$CONSUMER" use 4 4 2 --at 4.8,4.2,3
+"$CLI" --project "$CONSUMER" block 4 4 2 | tee /tmp/cdb-shelf.txt
+TOP="$(grep -oE 'slot_[012]_occupied=true' /tmp/cdb-shelf.txt | wc -l)"
+BOTTOM="$(grep -oE 'slot_[345]_occupied=true' /tmp/cdb-shelf.txt | wc -l)"
+[[ "$TOP" -ge 1 && "$BOTTOM" -ge 1 ]] \
+  || fail "aiming at two different points filled $TOP top and $BOTTOM bottom slots; --at is not routing the click"
+echo "two different aim points reached two different rows"
+
+log "Phase 3: aiming at a face places against that face"
+# Which face a placement lands on comes from the hit result, so this is the half of aiming that a
+# multipart mod uses to choose which side of a cable a part goes on.
+"$CLI" --project "$CONSUMER" setblock 6 4 2 minecraft:stone
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:torch 4" >/dev/null
+"$CLI" --project "$CONSUMER" use 6 4 2 --face north
+"$CLI" --project "$CONSUMER" block 6 4 1 | grep -q "minecraft:.*torch" \
+  || fail "--face north did not place the torch on the north side"
+# Standing on the right side is the half of aiming that a raytrace-resolved block depends on, and
+# it is not visible in the placement alone -- so assert it directly rather than infer it.
+"$CLI" --project "$CONSUMER" eval "player.getZ() < 2 && player.getXRot() > -45" | grep -q true \
+  || fail "approach did not put the player north of the block, looking at it"
+echo "the torch landed north, and the player stood north to put it there"
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:air" >/dev/null
+
 log "Phase 4: eval"
 "$CLI" --project "$CONSUMER" eval "player.getY()" | grep -qE '^[0-9]' || fail "eval returned nothing usable"
 "$CLI" --project "$CONSUMER" wait --expr "mc.level != null" --timeout 3000 || fail "wait --expr failed"
