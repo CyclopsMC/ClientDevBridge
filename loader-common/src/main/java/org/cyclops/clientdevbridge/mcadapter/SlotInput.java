@@ -1,7 +1,7 @@
 package org.cyclops.clientdevbridge.mcadapter;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import org.cyclops.clientdevbridge.protocol.RpcException;
 
 /**
@@ -24,19 +24,19 @@ public class SlotInput {
      * constant, and mapping them explicitly is also what keeps a rename from reaching the wire.
      */
     public static void perform(int containerId, int slotId, int button, String type) {
-        Minecraft.getInstance().gameMode.handleInventoryMouseClick(
+        Minecraft.getInstance().gameMode.handleContainerInput(
                 containerId, slotId, button, clickType(type), ClientState.requirePlayer());
     }
 
-    private static ClickType clickType(String name) {
+    private static ContainerInput clickType(String name) {
         return switch (name) {
-            case "pickup" -> ClickType.PICKUP;
-            case "quick_move" -> ClickType.QUICK_MOVE;
-            case "swap" -> ClickType.SWAP;
-            case "clone" -> ClickType.CLONE;
-            case "throw" -> ClickType.THROW;
-            case "quick_craft" -> ClickType.QUICK_CRAFT;
-            case "pickup_all" -> ClickType.PICKUP_ALL;
+            case "pickup" -> ContainerInput.PICKUP;
+            case "quick_move" -> ContainerInput.QUICK_MOVE;
+            case "swap" -> ContainerInput.SWAP;
+            case "clone" -> ContainerInput.CLONE;
+            case "throw" -> ContainerInput.THROW;
+            case "quick_craft" -> ContainerInput.QUICK_CRAFT;
+            case "pickup_all" -> ContainerInput.PICKUP_ALL;
             default -> throw RpcException.invalidParams("Unknown click type '" + name + "'.");
         };
     }
