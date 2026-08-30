@@ -75,7 +75,35 @@ public class Keys {
             return 289 + Integer.parseInt(name.substring(1)); // GLFW_KEY_F1 == 290
         }
         throw RpcException.invalidParams("Unknown key '" + raw + "'. Use a GLFW name such as 'GLFW_KEY_E', "
-                + "a single letter or digit, 'F3', a named key like 'ESCAPE', or a raw integer key code.");
+                + "a single letter or digit, 'F3', a named key like 'ESCAPE', a raw integer key code, "
+                + "or -- for a held action -- 'ATTACK', 'USE', 'PICK' or 'MOUSE_LEFT'.");
+    }
+
+    /**
+     * Resolves a name to the input the game actually binds, which is not always a keyboard key.
+     *
+     * {@link #toKeyCode} answers a keyboard code, and attack is bound to {@code key.mouse.left} --
+     * so holding attack, which is how every block in the game is mined, could not be expressed at
+     * all. Holding use is the same story: eating, drinking, drawing a bow and raising a shield.
+     *
+     * Three name families are accepted. The action names ({@code ATTACK}, {@code USE},
+     * {@code PICK}) are what a caller usually means and say nothing about which button they sit on;
+     * the mouse names ({@code MOUSE_LEFT} and friends) address the button directly; and everything
+     * else falls through to {@link #toKeyCode} as before.
+     */
+    public static InputConstants.Key toBinding(String raw) {
+        String name = raw.trim().toUpperCase(Locale.ROOT);
+        Options options = Minecraft.getInstance().options;
+        return switch (name) {
+            // Through the binding rather than a hard-coded button, so a rebound control still works.
+            case "ATTACK", "BREAK", "MINE" -> options.keyAttack.getDefaultKey();
+            case "USE", "PLACE" -> options.keyUse.getDefaultKey();
+            case "PICK", "PICK_ITEM" -> options.keyPickItem.getDefaultKey();
+            case "MOUSE_LEFT" -> toMouseKey(0);
+            case "MOUSE_RIGHT" -> toMouseKey(1);
+            case "MOUSE_MIDDLE" -> toMouseKey(2);
+            default -> toInputKey(toKeyCode(raw));
+        };
     }
 
     public static InputConstants.Key toInputKey(int keyCode) {
@@ -94,14 +122,32 @@ public class Keys {
      */
     @Nullable
     public static KeyMapping findMapping(int keyCode) {
+        return findMapping(toInputKey(keyCode));
+    }
+
+    @Nullable
+    public static KeyMapping findMapping(InputConstants.Key key) {
         Options options = Minecraft.getInstance().options;
-        InputConstants.Key key = toInputKey(keyCode);
+        boolean mouse = key.getType() == InputConstants.Type.MOUSE;
         for (KeyMapping mapping : options.keyMappings) {
-            if (!mapping.isUnbound() && mapping.matches(key.getValue(), -1)) {
+            if (mapping.isUnbound()) {
+                continue;
+            }
+            // Keyboard and mouse are separate namespaces -- button 0 and the key code 0 are not
+            // the same input -- so the match has to be made against the right one. Matching only
+            // the keyboard is what made every mouse binding unreachable.
+            if (mouse ? mapping.matchesMouse(key.getValue()) : mapping.matches(key.getValue(), -1)) {
                 return mapping;
             }
         }
         return null;
+    }
+
+    /** How a key reads back in an error: the name a caller would have typed. */
+    public static String describe(InputConstants.Key key) {
+        return key.getType() == InputConstants.Type.MOUSE
+                ? "mouse button " + key.getValue()
+                : "key code " + key.getValue();
     }
 
 }

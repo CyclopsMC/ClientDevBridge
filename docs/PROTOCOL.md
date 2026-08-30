@@ -92,6 +92,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `input.hold` | `{ key, ticks }` | `{ screenClass, mouse }` |
 | `player.look` | `{ yaw, pitch }` or `{ at: [x,y,z] }` | `{ pos, yaw, pitch }` |
 | `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived, requested, falling }` |
+| `player.walkTo` | `{ x, z, within?, timeoutTicks? }` | `{ pos, yaw, pitch, arrived, requested }` |
 | `player.useItem` | `{ hand?: "auto"\|"main"\|"off", waitScreenTicks? }` | `{ screenClass, mouse, held, aimedAt, hand, screenOpened }` |
 | `player.inventory` | – | `{ slots: [...], selected, carried }` |
 | `player.hotbar` | `{ slot }` | `{ selected }` |
@@ -101,6 +102,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.list` | – | `{ worlds: [string] }` |
 | `world.command` | `{ command }` | `{ success, value, output: [string] }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
+| `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, ticks, blockBefore, blockAfter, heldAfter, drops }` |
 | `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
 | `wait.ticks` | `{ ticks }` | `{ tick }` |
 | `wait.for` | `{ condition, value?, timeoutMs? }` | `{ met, condition, screenClass, inWorld }` |
@@ -109,6 +111,12 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `log.tail` | `{ lines?, filter?, level? }` | `{ lines: [string], level, buffered }` |
 
 ### Clicking a slot
+
+`input.hold` takes the mouse bindings as well as keys. Attack is bound to `key.mouse.left`, so
+holding it — which is how every block in the game is mined — needs a name that is not a keyboard
+code: `ATTACK`, `USE` and `PICK` name the bindings themselves, and `MOUSE_LEFT`/`MOUSE_RIGHT`/
+`MOUSE_MIDDLE` name the buttons. Holding `USE` is eating, drinking, drawing a bow and raising a
+shield; none of it could be expressed before.
 
 `input.mouseClick` with **no screen open** is an in-world click: button 0 attacks, button 1 uses.
 That branch queues a key binding rather than acting, so its reply is also sent five ticks later —
@@ -134,6 +142,37 @@ taken afterwards shows the hover highlight where the click landed.
 What this does not do is run a screen's own `slotClicked` override, and there is no way to: it is
 `protected`. A mod that filters slot moves there is bypassed. Nothing found so far does; the
 alternative is a mixin on `hasShiftDown`, which this mod does not need yet.
+
+### Breaking a block
+
+Mining is a *held* action. A single click does nothing, and how long it takes depends on the block,
+the tool, and whether the tool can harvest it at all — which is exactly what a caller should not
+have to know.
+
+`world.break` approaches and aims like `world.use`, presses attack, and then advances the destroy
+progress **once per tick** until the block gives way or `timeoutTicks` runs out. Once per tick and
+not in a loop: looping does break the block, because an integrated server validates loosely, but
+then the tool stops mattering and `ticks` stops meaning anything.
+
+`ticks` is worth reading. A diamond pickaxe takes about nine on cobblestone and bare hands take
+about two hundred and drop nothing — so a large number is usually the answer to "why did my block
+drop nothing", and it is the assertion that says mining happened rather than a block being removed.
+
+`drops` carries each item's **position** as well as its id and count, because a drop is thrown
+rather than placed: it lands a block or two from where the block was, and that is where the player
+has to walk to pick it up. They are read ten ticks after the break, since the drop is a server-side
+entity that reaches the client after the block has gone.
+
+### Walking
+
+`player.walkTo` holds forward until the player is `within` blocks of a horizontal position, or
+`timeoutTicks` expires. Horizontal only — walking does not control height, and requiring a `y`
+would fail on every slab and drop. The heading is re-aimed each tick, and the pitch is left alone:
+`player.look` at a point on the ground tilts the camera down, and walking forward while looking down
+walks into the ground.
+
+Prefer `player.teleport` unless the movement is the thing being tested — picking up a drop is the
+case that needs this one.
 
 ### Using the held item
 

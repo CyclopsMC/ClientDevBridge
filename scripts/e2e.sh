@@ -279,6 +279,47 @@ grep -q '"places": "minecraft:shulker_box"' <<<"$INSIDE" \
   || fail "the block a BlockItem places is not described: $INSIDE"
 echo "a container item reports its contents"
 
+log "Phase 3: mining a block in survival, and picking up what it drops"
+# The whole chain a player goes through, and the one that had no commands at all: attack is bound
+# to a mouse button, so holding it -- which is how every block in the game is broken -- could not
+# be expressed. Nor could holding use, which is eating, drinking, drawing a bow and shields.
+# Into the hand, not just the inventory: `give` finds a free slot and leaves the selection alone,
+# and mining cobblestone bare-handed works and drops nothing.
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:diamond_pickaxe 1" >/dev/null
+"$CLI" --project "$CONSUMER" setblock 0 4 2 minecraft:cobblestone >/dev/null
+"$CLI" --project "$CONSUMER" command "gamemode survival" >/dev/null
+"$CLI" --project "$CONSUMER" teleport 0 4 0 >/dev/null
+"$CLI" --project "$CONSUMER" break 0 4 2 | tee /tmp/cdb-break.txt
+grep -q "dropped minecraft:cobblestone" /tmp/cdb-break.txt \
+  || fail "breaking the cobblestone dropped nothing"
+# The tick count is what says this was mining rather than the block being removed: a diamond
+# pickaxe takes a handful of ticks on cobblestone, and zero would mean something else happened.
+BROKE_IN="$(grep -oE 'in [0-9]+ ticks' /tmp/cdb-break.txt | grep -oE '[0-9]+')"
+[[ "$BROKE_IN" -ge 2 ]] || fail "the block broke in $BROKE_IN ticks, which is not mining"
+# And a diamond pickaxe is fast. Bare-handed cobblestone takes about two hundred ticks and drops
+# nothing, so a large number here means the tool never reached the player's hand.
+[[ "$BROKE_IN" -le 60 ]] || fail "$BROKE_IN ticks is bare-handed; the pickaxe was not held"
+# The drop is thrown, so it lands a block or two away -- which is why its position is reported.
+DROP_AT="$(grep -oE 'at [-0-9.]+, [-0-9.]+, [-0-9.]+' /tmp/cdb-break.txt | sed 's/at //')"
+"$CLI" --project "$CONSUMER" walk-to "$(cut -d, -f1 <<<"$DROP_AT")" "$(cut -d, -f3 <<<"$DROP_AT")"
+"$CLI" --project "$CONSUMER" --json inventory \
+  | python3 -c "import json,sys; sys.exit(0 if any(s['item'] == 'minecraft:cobblestone' for s in json.load(sys.stdin)['slots']) else 1)" \
+  || fail "the player walked to the drop and did not pick it up"
+echo "mined it in $BROKE_IN ticks, walked to the drop and picked it up"
+
+log "Phase 3: hold-key reaches the mouse bindings"
+# The cause underneath the above: Keys answered a keyboard code, and attack is key.mouse.left.
+"$CLI" --project "$CONSUMER" setblock 0 4 2 minecraft:cobblestone >/dev/null
+"$CLI" --project "$CONSUMER" teleport 0 4 0 >/dev/null
+"$CLI" --project "$CONSUMER" look --at 0,4,2 >/dev/null
+"$CLI" --project "$CONSUMER" hold-key ATTACK --ticks 20 >/dev/null
+"$CLI" --project "$CONSUMER" block 0 4 2 | grep -q "minecraft:air" \
+  || fail "holding ATTACK did not mine the block"
+"$CLI" --project "$CONSUMER" hold-key MOUSE_LEFT --ticks 2 >/dev/null || fail "MOUSE_LEFT is not a held input"
+"$CLI" --project "$CONSUMER" hold-key USE --ticks 2 >/dev/null || fail "USE is not a held input"
+echo "ATTACK, USE and the mouse buttons can all be held"
+"$CLI" --project "$CONSUMER" command "gamemode creative" >/dev/null
+
 log "Phase 2: a teleport reports where the player stays, not where they were dropped"
 # The arrival condition used to be satisfied while the player was still falling, so the reply
 # described a position they held for one tick and every screenshot after it was of somewhere else.

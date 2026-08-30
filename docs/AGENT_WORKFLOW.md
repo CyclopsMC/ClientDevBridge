@@ -160,6 +160,28 @@ clientdevbridge block 0 4 2 --nbt
 For a scene too fiddly to script, commit a world under `clientdevbridge/templates/<name>/` in your
 repository and use `world-reset --template <name>`.
 
+### Breaking a block, and picking up what drops
+
+```bash
+clientdevbridge command "item replace entity @s weapon.mainhand with minecraft:diamond_pickaxe 1"
+clientdevbridge command "gamemode survival"
+clientdevbridge break 0 4 2
+#   broke Block{minecraft:cobblestone} in 9 ticks
+#     dropped minecraft:cobblestone x1 at 0.26, 4.00, 1.82
+clientdevbridge walk-to 0.26 1.82
+```
+
+**Put the tool in the hand, not just the inventory.** `give` finds a free slot and leaves the
+selection alone, and mining cobblestone bare-handed works fine and drops nothing. The tick count is
+how you notice: nine with a diamond pickaxe, about two hundred with bare hands.
+
+The drop's position is reported because a drop is *thrown* — it lands a block or two from where the
+block was, so `walk-to` needs the drop's coordinates and not the block's.
+
+`hold-key ATTACK --ticks 20` is the same thing without the composite, for when you want to hold the
+button rather than break a particular block. `hold-key USE` is eating, drinking, drawing a bow and
+raising a shield.
+
 ### Interacting with an item rather than a block
 
 Some mods' main entry point is an item you right-click holding nothing in particular — an Ability
