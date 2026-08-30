@@ -2,7 +2,6 @@ package org.cyclops.clientdevbridge.mcadapter;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -67,12 +66,23 @@ public class ScriptHelpers {
                 : blockEntity.saveWithoutMetadata(ClientState.requireLevel().registryAccess()).toString();
     }
 
-    /** An item stack from a registry name, for comparing against what is held or in a slot. */
+    /**
+     * An item stack from a registry name, for comparing against what is held or in a slot.
+     *
+     * Looked up by scanning the registry rather than by building a resource key from the string:
+     * the class that wraps a registry name is called ResourceLocation on 1.21 and Identifier on 26,
+     * and naming neither keeps this one file identical on every branch. The registry has on the
+     * order of a thousand entries and this runs once per call, so the scan costs nothing worth
+     * carrying a version difference for.
+     */
     public ItemStack item(String id, int count) {
-        ResourceLocation location = ResourceLocation.parse(id);
-        Item found = BuiltInRegistries.ITEM.getOptional(location)
-                .orElseThrow(() -> new IllegalArgumentException("No such item: " + id));
-        return new ItemStack(found, count);
+        String wanted = id.indexOf(':') < 0 ? "minecraft:" + id : id;
+        for (Item candidate : BuiltInRegistries.ITEM) {
+            if (BuiltInRegistries.ITEM.getKey(candidate).toString().equals(wanted)) {
+                return new ItemStack(candidate, count);
+            }
+        }
+        throw new IllegalArgumentException("No such item: " + wanted);
     }
 
     public ItemStack item(String id) {
