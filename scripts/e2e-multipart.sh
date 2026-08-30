@@ -60,19 +60,33 @@ except Exception as error:                       # noqa: BLE001 - reported, not 
     print(f'ERROR {error}', file=sys.stderr)
     sys.exit(3)
 
-for version in versions:                          # newest first
-    url = version['files'][0]['url']
+def loadable(index):
+    """Whether this build's NeoForge floor is at or below what the project pins."""
+    version = versions[index]
     path = os.path.join(tempfile.mkdtemp(), version['files'][0]['filename'])
     try:
-        urllib.request.urlretrieve(url, path)
+        urllib.request.urlretrieve(version['files'][0]['url'], path)
         with zipfile.ZipFile(path) as jar:
             toml = jar.read('META-INF/neoforge.mods.toml').decode('utf8')
-    except Exception:                             # noqa: BLE001 - just try the next build
-        continue
-    block = re.search(r'modId\s*=\s*"neoforge".*?versionRange\s*=\s*"\[([^,\]]+)', toml, re.S)
-    if block is None or as_tuple(block.group(1)) <= as_tuple(neoforge):
-        print(path)
-        sys.exit(0)
+    except Exception:                             # noqa: BLE001 - treat as unusable
+        return None
+    floor = re.search(r'modId\s*=\s*"neoforge".*?versionRange\s*=\s*"\[([^,\]]+)', toml, re.S)
+    return path if floor is None or as_tuple(floor.group(1)) <= as_tuple(neoforge) else None
+
+# The NeoForge floor only ever rises, so the newest loadable build is found by bisecting rather
+# than by walking down from the newest. These jars are megabytes each and there can be hundreds of
+# them: scanning downloaded a third of a gigabyte to answer one question.
+low, high, best = 0, len(versions) - 1, None
+while low <= high:
+    middle = (low + high) // 2
+    found = loadable(middle)
+    if found is None:
+        low = middle + 1                          # too new; older builds are further along
+    else:
+        best, high = found, middle - 1            # loadable; something newer may be too
+if best is not None:
+    print(best)
+    sys.exit(0)
 sys.exit(4)
 PY
 }
