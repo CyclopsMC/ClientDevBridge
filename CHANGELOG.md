@@ -4,6 +4,17 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 9 — making the loop faster
+
+- `ScriptHelpers`, bound into `eval` as `dev`: `pos`, `vec`, `block`, `blockId`, `blockEntity`,
+  `nbt` and `item`. The game is loaded by a transforming class loader and the script engine is not,
+  so a script could not construct a `BlockPos` at all; now it does not have to name the class.
+- `ScreenControl.close` presses escape rather than nulling the screen, so a screen's own exit
+  handling runs: the container-close packet, and Integrated Dynamics' save-on-escape, which was
+  silently discarding every value typed into an aspect settings screen.
+- `EvalHandler` explains the two mistakes that are easy to make here — that the code is a script
+  and not one expression, and that game classes come from `dev`.
+
 ### Phase 8 — interacting with a chosen side of a block
 
 - `Aim`: where on a block an interaction is pointed, as both the hit result's point and face and
