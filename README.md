@@ -70,6 +70,7 @@ its changes come from.
 | [`docs/snippets/CONSUMER_CLAUDE.md`](docs/snippets/CONSUMER_CLAUDE.md) | A ready-to-paste section for your mod's `CLAUDE.md` |
 | [`skills/clientdevbridge/SKILL.md`](skills/clientdevbridge/SKILL.md) | A Claude Code skill |
 | [`AGENTS.md`](AGENTS.md) | Developer guide: the `mcadapter` rule, the threading rules, how to port a version |
+| [`RELEASING.md`](RELEASING.md) | What publishes when, the upmerge order, and how to add a Minecraft version |
 
 ## What it can do
 
