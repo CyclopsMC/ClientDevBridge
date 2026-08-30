@@ -168,29 +168,117 @@ completion signal. Never re-check a thing whose completion will announce itself.
 ## Found by rebuilding the Integrated Dynamics clock
 
 A second run of the same task, with the tooling above in place, turned up three more. They are
-small and they each cost real minutes.
+small and they each cost real minutes. Take them in the order below: the first two are additive and
+carry no risk, and the third is the only one that touches the protocol.
 
-### `click` cannot shift-click · cli
+### 1. `dev` cannot read a block property · mod · ~20 lines
 
-Moving a stack between a container and the inventory is one shift-click for a player and two
-commands plus an empty-slot hunt here. `click --modifiers <n>` is rejected, so there is no way to
-express it at all. `input.mouseClick` already carries a button; it needs the modifier bits too, and
-`click` needs `--modifiers` and probably `--shift` as a name for the only one anybody wants.
+**The problem.** `dev.block(x, y, z)` answers a `BlockState`, and the obvious next question — is the
+lamp lit? — is `state.getValue(BlockStateProperties.LIT)`, which names a game class and so hits the
+very class loader wall `dev` exists to remove. The working incantation is
 
-### `dev` cannot read a block property · mod
+```groovy
+state.getValue(state.getProperties().find { it.getName() == "lit" })
+```
 
-`dev.block(x, y, z)` answers a `BlockState`, and the obvious next question — is the lamp lit? — is
-`state.getValue(BlockStateProperties.LIT)`, which names a game class and so hits the very class
-loader wall `dev` exists to remove. The workaround is
-`state.getValue(state.getProperties().find { it.getName() == "lit" })`, which nobody would guess.
-`dev.prop(x, y, z, "lit")` would close it.
+which nobody would guess, and which I wrote a helper closure for four separate times in one session.
 
-### A teleport onto thin air is a silent trap · cli
+**The plan.** Two methods on `ScriptHelpers`:
 
-`teleport` puts the player where it is told; gravity then moves them, and every screenshot after
-that is of somewhere else. It cost two rounds of captures here, both of empty grass, because
-nothing said the player had moved. `teleport` should report the position it settled at rather than
-the one it asked for, or warn when the block below is not solid.
+- `dev.prop(x, y, z, "lit")` — the value, as the game's own object, so `== true` and `> 0` both work
+  on it rather than on a string.
+- `dev.props(x, y, z)` — a name-to-value map, because "what does this block even have" is the
+  question immediately before the other one.
+
+`prop` on a name the block does not have must fail with the list of names it does have; that is the
+whole reason the caller is in the dark, and a `NullPointerException` from `getValue(null)` — which
+is what happens today — tells them nothing.
+
+Version-neutral: `BlockState.getProperties()`, `Property.getName()` and `getValue` are unchanged
+across every branch, so it upmerges without a conflict. No protocol change, no CLI change.
+
+### 2. A teleport reports a position the player is about to leave · mod · ~15 lines
+
+**The problem, corrected.** I first wrote this up as "teleport reports the position it asked for".
+That is not what happens. `player.teleport` already returns both `pos` and `requested`, and the CLI
+already prints `(asked for ...; the player has since fallen or been pushed)` when they differ. The
+machinery is all there and it did not fire.
+
+It did not fire because of `PlayerControl.isAt`, which the handler waits on: it accepts the player
+being within **1.5 blocks vertically** of the target, and that is true the instant they arrive —
+while they are still in the air. The reply goes out, truthfully describing a position the player
+holds for one more tick, and gravity does the rest after the command has returned. Every screenshot
+after that is of somewhere else, and nothing ever said so.
+
+**The plan.** A second predicate, `PlayerControl.isSettledAt`, that adds "and the player is on the
+ground". `player.teleport` waits on that one.
+
+`isAt` itself must not change. `Interaction.approach` waits on it to position the player for an aim,
+and `Aim.standingPosition` deliberately puts the player in mid-air for a `down` face — requiring
+solid ground there would hang every downward interaction until the timeout. Two predicates, two
+callers, no shared surprise.
+
+When the timeout expires with the player still falling, say that: `arrived: false` plus a message
+naming the fall, rather than a position that is already stale. A teleport into the void or a
+deliberate mid-air placement stays possible — it just reports honestly that it did not settle.
+
+### 3. `click` cannot shift-click · mod and cli · the only protocol change
+
+**The problem.** Moving a stack between a container and the player inventory is one shift-click for
+a player, and here it is two clicks plus finding an empty slot to drop into. There is no way to
+express it at all: `click --modifiers 1` is rejected, and adding the flag would not help, because
+`Screen.mouseClicked(x, y, button)` takes no modifiers. Minecraft decides shift-click inside
+`AbstractContainerScreen.mouseClicked`, by calling the **static** `Screen.hasShiftDown()`, which
+reads the real GLFW key state through `InputConstants.isKeyDown`. Synthetic input cannot reach it.
+
+**Two routes, and they are a genuine trade.**
+
+*Route A — name the operation.* `MultiPlayerGameMode.handleInventoryMouseClick(containerId, slotId,
+button, ClickType, player)` is **public**, and is exactly what `AbstractContainerScreen.slotClicked`
+calls once it has worked out which `ClickType` the mouse and modifiers meant. Calling it directly
+skips the guessing: `quick_move` *is* what shift-click means. No mixin, no new failure mode on a
+version bump.
+
+The cost is real and worth writing down: it goes around a screen's own `slotClicked` override, and
+`slotClicked` is `protected`, so there is no way to route through an override without widening it.
+A mod that filters slot moves there would be bypassed. That is the same mistake `ScreenControl.close`
+was fixed for, and the honest defence is different here — `close` had a public, correct path
+available (pressing escape) and this one does not.
+
+*Route B — make the modifier real.* A mixin on `Screen.hasShiftDown()` returning true while a
+virtual modifier is held, and then an ordinary `click`. Every consumer sees it, mod code included,
+and nothing is bypassed. The cost is that this mod has **no mixins today** — that is a deliberate
+property, and it is why it has survived three Minecraft versions with version-sensitive code
+confined to `mcadapter/` and no injection points to re-target. Route B spends that.
+
+**Recommendation: A now, B only if a real screen needs it.** Route A covers every case that has come
+up, and if a mod is ever found that filters in `slotClicked`, B can be added behind the same command
+without changing the protocol again.
+
+**The shape.**
+
+- Protocol: `input.slotClick` with `{ slot | x, y, button, type }`, `type` one of `pickup`,
+  `quick_move`, `swap`, `clone`, `throw`, `quick_craft`, `pickup_all`. Additive, so still protocol
+  version 1.
+- `slot` is the index the snapshot already reports for every slot, which is a better handle than a
+  coordinate and one the caller already has. `x, y` stays available and resolves to a slot by
+  hit-testing the rectangles the snapshot also already reports; a point that is not over a slot is
+  an error naming the nearest one.
+- CLI: `clientdevbridge slot-click <slot> [--type quick_move] [--button 0]`, plus `--shift` on the
+  existing `click` as sugar for the case everyone actually wants.
+- `ClickType` is an enum in both 1.21 and 26; confirm the constant names on each branch during the
+  upmerge rather than assuming.
+
+### Testing all three
+
+- `scripts/e2e.sh` gains a vanilla shift-click: give an item, open a chest, `slot-click` it from the
+  inventory, assert with `--json` that the stack changed slots. That is the assertion that would
+  have caught the whole gap.
+- `scripts/e2e-multipart.sh` moves the written variable card with one `slot-click` instead of the
+  pick-up-and-place pair, which is the real-world case that found this.
+- A teleport onto thin air, asserting the reported `pos` equals where the player is a second later.
+- `eval "dev.prop(0, 4, 2, 'lit')"` in the e2e suite, which also proves the binding survives the
+  class loader.
 
 ---
 
