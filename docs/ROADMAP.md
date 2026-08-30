@@ -501,6 +501,17 @@ broke, reaches the client a few ticks later, and lands a block or two from where
 so `drops` is read ten ticks after the break and carries each item's position. Without the position
 there is nowhere to walk to.
 
+**`eval` had been dead on Minecraft 26 all along.** Running the suite on the 26 worktree by hand --
+which the new mining phases made worth doing -- failed on an `eval` assertion with
+`Unsupported class file major version 69`: the init script pinned Groovy 4.0.22, which cannot read
+Java 25 class files. So `eval` and `wait --expr`, a headline feature, had never worked on either 26
+branch. Nothing caught it because CI's e2e job pins Java 21 and never gets far enough there to try.
+Groovy 5.1.1 fixes it and passes on 1.21 too.
+
+**A CI gap worth closing separately:** the e2e job's `java-version: 21` means the suite has never
+run against a 26 branch at all. That is why a whole feature could be broken there unnoticed, and it
+is a bigger hole than any single bug it has been hiding.
+
 **`give` does not put the item in your hand.** It finds a free slot and leaves the selection alone,
 so the e2e mined cobblestone bare-handed: 202 ticks, and no drop, because cobblestone needs a
 pickaxe. That is the tick count doing exactly the job it was added for — it is now asserted from
