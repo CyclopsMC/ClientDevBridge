@@ -42,7 +42,9 @@ public class ScreenControl {
         Minecraft minecraft = Minecraft.getInstance();
         for (int attempt = 0; attempt < MAX_ESCAPES && minecraft.screen != null; attempt++) {
             net.minecraft.client.gui.screens.Screen before = minecraft.screen;
-            minecraft.screen.keyPressed(ESCAPE_KEY, -1, 0);
+            // Through InputControl rather than the screen directly: how a key event is built is
+            // version-sensitive, and that is already solved in one place.
+            InputControl.key(ESCAPE_KEY, "tap", 0);
             if (minecraft.screen == before) {
                 // It did not act on escape, so nothing more will come of pressing it again.
                 break;
