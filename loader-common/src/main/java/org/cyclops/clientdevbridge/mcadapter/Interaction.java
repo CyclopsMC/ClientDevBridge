@@ -129,7 +129,13 @@ public class Interaction {
     public static void setSneaking(boolean sneaking) {
         LocalPlayer player = ClientState.requirePlayer();
         player.setShiftKeyDown(sneaking);
-        player.input.shiftKeyDown = sneaking;
+        // The input is an immutable record here, so the flag is set by rebuilding it rather than
+        // by assignment. It is what the client sends the server, which is where sneak has to
+        // arrive for a block to read it.
+        net.minecraft.world.entity.player.Input keys = player.input.keyPresses;
+        player.input.keyPresses = new net.minecraft.world.entity.player.Input(
+                keys.forward(), keys.backward(), keys.left(), keys.right(), keys.jump(),
+                sneaking, keys.sprint());
     }
 
     public static boolean isSneaking() {
