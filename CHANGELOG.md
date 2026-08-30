@@ -4,6 +4,21 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 8 — interacting with a chosen side of a block
+
+- `Aim`: where on a block an interaction is pointed, as both the hit result's point and face and
+  the position and rotation the player needs for the ray from their eye to arrive through it.
+  `screen.open` and the new `world.use` take `face` or `at`.
+- `world.use`: the general right-click, for interactions that never open a screen — placing a block
+  or a cable part, tools, wrenching with `sneak`. It reports the interaction's own outcome, in a
+  vocabulary normalised across branches because `InteractionResult` is an enum on 1.21 and a sealed
+  interface of records on 26.
+- `BlockExtractors`: the counterpart of `SnapshotExtractors` for `world.block`, so a mod can say
+  what distinguishes one instance of its block entity from another. A cable with a part on it and a
+  bare one are otherwise identical in every field the description carries.
+- `scripts/e2e-multipart.sh`: the end-to-end suite against Integrated Dynamics' cables, which is
+  the only coverage of a block that resolves a click by raytracing rather than by hit result.
+
 ### Phase 1 — headless boot and screenshots
 
 - `BridgeServer`: a localhost-only WebSocket endpoint, started from the client setup hook and only
