@@ -241,6 +241,14 @@ log "Phase 3: using the item in your hand"
 "$CLI" --project "$CONSUMER" look --pitch -90 >/dev/null
 "$CLI" --project "$CONSUMER" use-item --wait-screen | tee /tmp/cdb-use-item.txt
 grep -q "BookEditScreen" /tmp/cdb-use-item.txt || fail "use-item did not open the book"
+# The other side of --wait-screen: an item that opens nothing has to fail, after waiting, rather
+# than passing. (No vanilla item opens a *server* container on use, so that half -- the one that
+# made the flag look broken against Everlasting Abilities -- is only covered by hand.)
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:stone 1" >/dev/null
+QUIET="$("$CLI" --project "$CONSUMER" use-item --wait-screen 2>&1 || true)"
+grep -q "No screen opened" <<<"$QUIET" || fail "--wait-screen passed for an item that opens nothing: $QUIET"
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:writable_book 1" >/dev/null
 "$CLI" --project "$CONSUMER" close-screen >/dev/null
 # open-gui with no coordinates is the same thing, so the wait-for-screen composite works for items.
 "$CLI" --project "$CONSUMER" open-gui | grep -q "BookEditScreen" || fail "open-gui with no block did not use the held item"
