@@ -121,12 +121,24 @@ public class WorldControl {
      *
      * @param templatesRoot {@code <projectDir>/clientdevbridge/templates}
      */
-    public static void copyTemplate(Path templatesRoot, String template, String worldName) {
+    /**
+     * Checks a template exists before anything is destroyed on its behalf.
+     *
+     * Splitting this out of {@link #copyTemplate} is the whole point: world.reset leaves the world
+     * and deletes it before it copies, so a typo'd template name used to cost the caller the world
+     * they had and leave them at the title screen with nothing.
+     */
+    public static void requireTemplate(Path templatesRoot, String template) {
         Path source = templatesRoot.resolve(template);
         if (!Files.isDirectory(source)) {
             throw RpcException.invalidParams("No world template '" + template + "' at " + source
                     + ". Commit one there, or drop --template to generate a fresh superflat world.");
         }
+    }
+
+    public static void copyTemplate(Path templatesRoot, String template, String worldName) {
+        requireTemplate(templatesRoot, template);
+        Path source = templatesRoot.resolve(template);
         Path target = levelSource().getLevelPath(worldName);
         try {
             copyRecursively(source, target);
@@ -184,15 +196,16 @@ public class WorldControl {
     }
 
     /**
-     * Opens an existing world by its save folder name.
-     */
-    /**
      * Fails with the list of real world names if this one does not exist.
      */
     public static void requireExists(String name) {
         if (!exists(name)) {
-            throw RpcException.invalidParams("There is no world called '" + name + "'. Existing worlds: "
-                    + String.join(", ", listWorlds()));
+            java.util.List<String> worlds = listWorlds();
+            throw RpcException.invalidParams("There is no world called '" + name + "'. "
+                    + (worlds.isEmpty()
+                            ? "This run directory has no worlds at all yet; make one with "
+                                    + "'clientdevbridge world-reset'."
+                            : "Existing worlds: " + String.join(", ", worlds)));
         }
     }
 

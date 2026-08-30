@@ -87,3 +87,28 @@ the upmerge rule asks.
 - CI fails when the access widener exists and `fabric.mod.json` does not declare it. That
   combination has no runtime effect and nothing about the build says so — the mod loads, and the
   first sign is an `IllegalAccessError` from whichever widened field a caller reaches first.
+
+### Fixes from independent validation (see `validation/phase-7.md`, `validation/phase-7-rerun.md`)
+
+- `screen.open` skips the approach teleport when the block is already in reach. A teleport the
+  player does not need is not merely wasted: the server ignores interactions from a client it is
+  still waiting on a teleport confirmation from, so every repeated `open-gui` on the same block
+  failed. It also compares the screen instance rather than its class name, so re-opening the same
+  kind of screen is reported as having opened.
+- `window.resize` applies the size and the GUI scale as separate steps, waiting for the window to
+  actually change in between. GLFW delivers a resize asynchronously, so validating the scale in the
+  same step measured the window that was being replaced — and rejected valid scales after having
+  already applied the resize.
+- `world.reset` checks the template exists before leaving and deleting the world. A typo'd name
+  used to cost the caller the world they had.
+- `input.mouseDrag` and `screen.tooltip` reject an off-screen point like every other input method.
+  A drag dropped what it was carrying on the floor and reported success; a tooltip left the cursor
+  parked outside the window, so every later snapshot reported an impossible position.
+- The reported mouse position comes from the game rather than from the last position the bridge
+  asked for. On a virtual display the real pointer starts at the centre of the window, so a fresh
+  snapshot said "mouse at 0,0" and marked the centre slot hovered in the same breath.
+- An out-of-bounds point is reported in the space the caller used, not converted into GUI space and
+  then labelled "pixel".
+- `world.load` says a run directory has no worlds at all rather than printing an empty list.
+- `hello` carries `projectDir`, and `player.teleport` reports the position that was requested
+  alongside the one the player ended up at.

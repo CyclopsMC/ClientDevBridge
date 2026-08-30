@@ -51,6 +51,29 @@ public class Geometry {
         return space;
     }
 
+    /**
+     * Rejects a point that is not on screen, in whichever space the caller used.
+     *
+     * Silently accepting one is the worst available answer: the command succeeds, nothing happens,
+     * and the next screenshot is indistinguishable from a click that landed and did nothing. The
+     * message quotes the caller's own numbers and the bounds in the caller's own space, because
+     * being told that "9999,9999 is outside 427x240" when you asked in pixels is its own puzzle.
+     *
+     * @param x the x the caller gave, in {@code space}
+     * @param y the y the caller gave, in {@code space}
+     */
+    public static void requireOnScreen(double x, double y, String space) {
+        double width = SPACE_PIXEL.equals(space) ? window().getWidth() : guiWidth();
+        double height = SPACE_PIXEL.equals(space) ? window().getHeight() : guiHeight();
+        if (x < 0 || y < 0 || x > width || y > height) {
+            throw RpcException.invalidParams(String.format(
+                    "Point %.0f,%.0f is outside the screen, which is %.0fx%.0f in %s space. "
+                            + "Take a fresh 'clientdevbridge snapshot': the coordinates it prints are "
+                            + "in GUI space, and the window may have been resized since the last one.",
+                    x, y, width, height, space));
+        }
+    }
+
     /** The GUI-space width of the screen, which is what every coordinate the bridge reports is in. */
     public static int guiWidth() {
         return window().getGuiScaledWidth();
