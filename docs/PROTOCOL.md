@@ -92,7 +92,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `input.hold` | `{ key, ticks }` | `{ screenClass, mouse }` |
 | `player.look` | `{ yaw, pitch }` or `{ at: [x,y,z] }` | `{ pos, yaw, pitch }` |
 | `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived, requested, falling }` |
-| `player.useItem` | `{ hand?: "auto"\|"main"\|"off" }` | `{ screenClass, mouse, held, aimedAt, hand, screenOpened }` |
+| `player.useItem` | `{ hand?: "auto"\|"main"\|"off", waitScreenTicks? }` | `{ screenClass, mouse, held, aimedAt, hand, screenOpened }` |
 | `player.inventory` | – | `{ slots: [...], selected, carried }` |
 | `player.hotbar` | `{ slot }` | `{ selected }` |
 | `world.reset` | `{ name?, template?, setup? }` | `{ world, template, spawn, seed, platformY, platformRadius }` |
@@ -152,6 +152,11 @@ block.
 
 The key binding is *queued*: Minecraft processes it in the next tick, and what it does then may be
 a server round trip. The reply is sent five ticks later, the same allowance `world.use` makes.
+
+Five ticks is enough for a screen the client opens and not for one the server does — a container
+screen arrives with an `OpenScreen` packet, whenever that is. `waitScreenTicks` awaits a screen for
+up to that many ticks before replying, which is what the CLI's `--wait-screen` sends; without it the
+reply reported "no screen opened" for an item that had opened one.
 
 ### Teleporting
 

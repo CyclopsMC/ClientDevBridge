@@ -389,6 +389,15 @@ So the result carries `aimedAt` (`block`, `entity` or `miss`), and the CLI warns
 the click before the item could. "The item did nothing" and "you were looking at a chest" are the
 same reply otherwise.
 
+**And `--wait-screen` did not wait.** It read the screen once after the five-tick settle, which is
+enough for a chest and not for the Ability Bottle: a container screen is opened by the *server*, so
+it arrives with a packet rather than on the tick the click was processed. The flag reported "no
+screen opened" for an item that had opened one — worse than not offering the wait at all. It now
+awaits a screen for five seconds, in the mod, so it stays one round trip.
+
+Redoing the whole Everlasting Abilities task with all of this in place took **4m 47s**, against
+**9m 41s** the first time.
+
 ### 4. Nothing reads a list that is drawn rather than built from widgets · nothing to build yet
 
 The two ability lists are drawn directly, so `snapshot` shows six arrow buttons and no rows: the
