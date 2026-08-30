@@ -13,7 +13,7 @@ Works headless, so it is available in cloud sessions and CI as well as locally.
 ## Before you start
 
 ```bash
-clientdevbridge doctor    # or: npx @cyclopsmc/clientdevbridge-cli doctor
+clientdevbridge doctor    # or: npx cyclops-clientdevbridge-cli doctor
 ```
 
 If `doctor` reports problems, fix those first — it prints the exact command for each. On a headless

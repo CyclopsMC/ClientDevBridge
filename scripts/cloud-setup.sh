@@ -38,9 +38,9 @@ if [[ "$INSTALL" == "1" ]]; then
   $SUDO apt-get update -qq
   $SUDO apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils libglu1-mesa
 
-  log "Installing @cyclopsmc/clientdevbridge-cli"
+  log "Installing cyclops-clientdevbridge-cli"
   if command -v npm >/dev/null 2>&1; then
-    npm install -g @cyclopsmc/clientdevbridge-cli
+    npm install -g cyclops-clientdevbridge-cli
   else
     echo "npm is not installed; install Node 20 or newer, then re-run." >&2
     exit 2

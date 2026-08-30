@@ -4,12 +4,12 @@ Drive a Minecraft **dev client** from the shell, so a coding agent can launch it
 and look at what it rendered — structurally and visually.
 
 ClientDevBridge is the mod half. The other half is
-[`@cyclopsmc/clientdevbridge-cli`](https://github.com/CyclopsMC/clientdevbridge-cli), which is what
+[`cyclops-clientdevbridge-cli`](https://github.com/CyclopsMC/clientdevbridge-cli), which is what
 you actually run.
 
 ```bash
-npx @cyclopsmc/clientdevbridge-cli start --project path/to/your/mod
-npx @cyclopsmc/clientdevbridge-cli screenshot
+npx cyclops-clientdevbridge-cli start --project path/to/your/mod
+npx cyclops-clientdevbridge-cli screenshot
 # /path/to/your/mod/.clientdevbridge/screenshots/screenshot_2026-08-29_19-12-03.png
 ```
 
