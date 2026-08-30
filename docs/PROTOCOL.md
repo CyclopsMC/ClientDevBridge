@@ -140,8 +140,10 @@ wrong part.
 
 `world.use` is `screen.open` without the expectation of a screen. Placing a part, using a tool and
 wrenching all leave no screen behind, so `use` reports what changed instead of failing. Trust
-`result` (the interaction's own outcome) over the before/after fields: in creative nothing leaves
-the hand, and a cable gaining a part changes neither its block id nor its state.
+`result` over the before/after fields: in creative nothing leaves the hand, and a cable gaining a
+part changes neither its block id nor its state. It is `SUCCESS` when the block handled the click
+and `PASS` when it did not — the finer distinctions Minecraft draws internally differ between
+versions and are deliberately not exposed, since one CLI release drives every branch.
 
 `eval` and `wait.for expr` need `-Dclientdevbridge.eval=true` **and** a Groovy engine on the
 classpath. The mod reaches it through `javax.script`, so it is genuinely optional; the CLI's init

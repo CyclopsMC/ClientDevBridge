@@ -38,7 +38,7 @@ echo "work:      $WORK"
 # check a human would otherwise do by hand, once per bump.
 resolve() {
   python3 - "$1" "$MC_VERSION" "$NEOFORGE_VERSION" <<'PY'
-import json, sys, tempfile, urllib.request, zipfile, re, os
+import json, sys, tempfile, urllib.request, urllib.parse, zipfile, re, os
 
 slug, mc, neoforge = sys.argv[1], sys.argv[2], sys.argv[3]
 
@@ -49,8 +49,11 @@ def get(url):
 def as_tuple(version):
     return tuple(int(part) for part in re.findall(r'\d+', version)[:3])
 
-query = (f'https://api.modrinth.com/v2/project/{slug}/version'
-         f'?game_versions=["{mc}"]&loaders=["neoforge"]')
+# The filters are JSON arrays in the query string, so they have to be percent-encoded; sent raw
+# the API answers 400.
+query = ('https://api.modrinth.com/v2/project/' + slug + '/version?'
+         + urllib.parse.urlencode({'game_versions': json.dumps([mc]),
+                                   'loaders': json.dumps(['neoforge'])}))
 try:
     versions = get(query)
 except Exception as error:                       # noqa: BLE001 - reported, not raised

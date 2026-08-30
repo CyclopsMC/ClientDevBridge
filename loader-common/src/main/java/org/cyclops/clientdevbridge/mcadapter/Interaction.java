@@ -30,6 +30,24 @@ public class Interaction {
     /** How long to wait for the server to have the rotation the click depends on. */
     private static final int ROTATION_TIMEOUT_TICKS = 20;
 
+    /**
+     * The outcome of a click, in a vocabulary that is the same on every branch.
+     *
+     * {@code InteractionResult} is an enum on 1.21 and a sealed interface of records on 26, so its
+     * own {@code toString} differs -- {@code SUCCESS} against
+     * {@code Success[swingSource=CLIENT, ...]} -- and a caller checking for one would break on the
+     * other. {@code consumesAction()} is the one predicate that reads identically on both, so the
+     * report is built from it: SUCCESS when the block handled the click, PASS when it did not.
+     *
+     * The finer distinctions each version draws -- consume versus success, which arm swings, 1.21's
+     * partial consume, 26's try-with-empty-hand -- are deliberately not surfaced. They cannot be
+     * expressed identically across branches, and a protocol field that means something different
+     * depending on which Minecraft answered is worse than one that says less.
+     */
+    public static String describeResult(InteractionResult result) {
+        return result.consumesAction() ? "SUCCESS" : "PASS";
+    }
+
     public static InteractionResult useOn(Aim aim, InteractionHand hand) {
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = ClientState.requirePlayer();
