@@ -156,6 +156,8 @@ public class ClientState {
         bindings.put("screen", screen());
         bindings.put("window", minecraft.getWindow());
         bindings.put("server", minecraft.getSingleplayerServer());
+        // Constructors for the game objects a script cannot build itself; see ScriptHelpers.
+        bindings.put("dev", new ScriptHelpers());
         return bindings;
     }
 

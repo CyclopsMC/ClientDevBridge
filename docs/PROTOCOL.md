@@ -149,6 +149,29 @@ versions and are deliberately not exposed, since one CLI release drives every br
 classpath. The mod reaches it through `javax.script`, so it is genuinely optional; the CLI's init
 script adds `org.apache.groovy:groovy-jsr223` alongside the mod.
 
+### What a script can see
+
+Bound names: `mc`, `player`, `level`, `screen`, `window`, `server`, and `dev`.
+
+`dev` exists because the game is loaded by a transforming class loader and the script engine is
+not, so `new net.minecraft.core.BlockPos(0, 4, 2)` fails with a message about class loaders and no
+way to act on it. Nothing constructed on the script's side can be a game object; `dev` builds them
+on the game's side instead:
+
+| Call | Answers |
+| --- | --- |
+| `dev.pos(x, y, z)` | a `BlockPos` |
+| `dev.vec(x, y, z)` | a `Vec3` |
+| `dev.block(x, y, z)` | the `BlockState` |
+| `dev.blockId(x, y, z)` | the block's registry name, as a string |
+| `dev.blockEntity(x, y, z)` | the `BlockEntity`, or null |
+| `dev.nbt(x, y, z)` | the block entity's synced data, as a string |
+| `dev.item("minecraft:stone"[, count])` | an `ItemStack` |
+
+The code is a **script**, not a single expression: statements are allowed and the last one is its
+value. So negate the last statement, not the whole thing — `def p = dev.pos(0, 4, 2); !level.getBlockState(p).isAir()`,
+never `!(def p = ...; ...)`.
+
 ## `screen.snapshot`
 
 ```jsonc

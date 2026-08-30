@@ -86,6 +86,16 @@ clientdevbridge type "hello"                    # into the focused widget
 clientdevbridge key ESCAPE
 ```
 
+For a text field, use `set-text` rather than assembling the edit yourself:
+
+```bash
+clientdevbridge set-text "/root/children[4]" 77 --commit enter
+```
+
+It focuses the field, clears exactly as many characters as it holds (the snapshot knows), types,
+presses the commit key, and reads the value back — so a field that rejected part of your input says
+so here rather than three commands later.
+
 **Prefer paths over labels for anything you click more than once.** Many vanilla widgets have no
 real label and fall back to their narration, which *changes with their state* — the recipe-book
 button reads `button Left click to activate` until it is focused and `button Press Enter to
@@ -185,6 +195,49 @@ clientdevbridge screenshot
 adding or removing a field, a method or a superclass needs `restart`. Classes not yet loaded are
 reported as `pending`, which is not a failure — the new code is used the first time they load.
 Pointing `JAVA_HOME` at a JetBrains Runtime makes far more swaps succeed.
+
+`hotswap --restart-if-needed` makes that call for you, restarting with the options the running
+client was launched with. Use it when you want the change live and do not care which route it took.
+
+**Keep one client alive for the whole session.** Booting is a minute or two, and a restart also
+throws away the world you built — which for anything non-trivial cost more commands than the edit
+did. Reach for `hotswap` first and `restart` only when it says it cannot swap.
+
+## Running a whole script at once
+
+```bash
+clientdevbridge batch scene.txt      # or '-' for stdin
+```
+
+Each command otherwise opens a socket, does one thing and closes it — fine for a command you type,
+wasteful for the fifty a scene takes to build. `batch` runs them over a single connection, echoing
+each line, and stops at the first failure with its line number. `--continue-on-error` runs the rest;
+`--json` prints one result object per command.
+
+A whole scene therefore costs one invocation:
+
+```
+world-reset
+give minecraft:redstone_lamp
+setblock 0 4 2 minecraft:redstone_lamp
+open-gui 0 4 2 --face north
+set-text "Pulse length" 77 --commit enter
+close-screen
+screenshot --name after
+```
+
+## Asserting that something changed
+
+`compare` proves a screen did **not** change. The opposite assertion is `screenshot --diff`:
+
+```bash
+clientdevbridge screenshot --name before
+clientdevbridge command "setblock 0 4 2 minecraft:redstone_block"
+clientdevbridge screenshot --name after --diff .clientdevbridge/screenshots/before.png
+```
+
+It exits non-zero when the two captures are too similar, so "the lamp lit up" is a check rather
+than something you have to look at yourself.
 
 ## When something goes wrong
 
