@@ -173,6 +173,8 @@ carry no risk, and the third is the only one that touches the protocol.
 
 ### 1. `dev` cannot read a block property · mod · ~20 lines
 
+> **Shipped.** `dev.prop(x, y, z, "lit")` and `dev.props(x, y, z)`.
+
 **The problem.** `dev.block(x, y, z)` answers a `BlockState`, and the obvious next question — is the
 lamp lit? — is `state.getValue(BlockStateProperties.LIT)`, which names a game class and so hits the
 very class loader wall `dev` exists to remove. The working incantation is
@@ -199,6 +201,8 @@ across every branch, so it upmerges without a conflict. No protocol change, no C
 
 ### 2. A teleport reports a position the player is about to leave · mod · ~15 lines
 
+> **Shipped.** `PlayerControl.isSettledAt`, waited on by `player.teleport` only, plus a `falling` field.
+
 **The problem, corrected.** I first wrote this up as "teleport reports the position it asked for".
 That is not what happens. `player.teleport` already returns both `pos` and `requested`, and the CLI
 already prints `(asked for ...; the player has since fallen or been pushed)` when they differ. The
@@ -223,6 +227,8 @@ naming the fall, rather than a position that is already stale. A teleport into t
 deliberate mid-air placement stays possible — it just reports honestly that it did not settle.
 
 ### 3. `click` cannot shift-click · mod and cli · the only protocol change
+
+> **Shipped**, by route A. `input.slotClick`, `clientdevbridge slot-click`, and `--shift` on `click`.
 
 **The problem.** Moving a stack between a container and the player inventory is one shift-click for
 a player, and here it is two clicks plus finding an empty slot to drop into. There is no way to
@@ -268,6 +274,23 @@ without changing the protocol again.
   existing `click` as sugar for the case everyone actually wants.
 - `ClickType` is an enum in both 1.21 and 26; confirm the constant names on each branch during the
   upmerge rather than assuming.
+
+### What the port added to the plan
+
+Two things the plan did not know, both found by building it.
+
+**`ClickType` is `ContainerInput` on 26**, and `handleInventoryMouseClick` is
+`handleContainerInput`. The seven constants and the argument order are unchanged, so the difference
+is two names — but left inside `InputControl` it would have put a conflict in the middle of a large
+shared file on every future upmerge. It lives in `SlotInput` instead, forty lines that are the whole
+of what the branches differ in, with the protocol's names rather than the enum's crossing the
+boundary so a rename cannot reach the wire.
+
+**Route A's one worry did not materialise.** The concern was that going through
+`handleInventoryMouseClick` skips a screen's own `slotClicked`. `scripts/e2e-multipart.sh` now
+`quick_move`s a variable card out of an Integrated Dynamics part screen — a real modded container
+from a mod that does a great deal of its own slot handling — and it works. That is not proof no
+screen anywhere filters there, but it is the case that would most likely have shown it.
 
 ### Testing all three
 
