@@ -125,7 +125,7 @@ public class EvalHandler {
      *
      * Game classes are another one. The script engine loads from a different class loader than the
      * transformed game, so naming a Minecraft class outright fails with a class-loader message
-     * that says nothing about what to do instead: reach them through the bound objects.
+     * that says nothing about what to do instead: build them through the bound {@code dev} object.
      */
     private static String hintFor(String code, ScriptException e) {
         String message = String.valueOf(e.getMessage());
@@ -136,9 +136,9 @@ public class EvalHandler {
         }
         if (message.contains("class loader") || message.contains("ClassLoader")) {
             return "\nGame classes are loaded by the transforming class loader and the script engine"
-                    + " is not, so naming one directly fails. Reach them through the bound objects"
-                    + " instead -- 'player.blockPosition().offset(dx, dy, dz)' rather than"
-                    + " 'new net.minecraft.core.BlockPos(x, y, z)'.";
+                    + " is not, so naming one directly fails. Build them through 'dev' instead --"
+                    + " 'dev.pos(x, y, z)' rather than 'new net.minecraft.core.BlockPos(x, y, z)'."
+                    + " It also has vec, block, blockId, blockEntity, nbt and item.";
         }
         return "";
     }

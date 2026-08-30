@@ -9,11 +9,14 @@ Everything below is ordered by how much time it would actually have saved, measu
 against that task. The estimates are rough; the ordering is not.
 
 Each item says which repo it lands in: **mod** (`CyclopsMC/ClientDevBridge`) or
-**cli** (`CyclopsMC/clientdevbridge-cli`).
+**cli** (`CyclopsMC/clientdevbridge-cli`). Items marked **Shipped** are done; the reasoning is kept
+because it is why the thing looks the way it does.
 
 ---
 
 ## 1. `batch` — run many commands over one connection · cli
+
+> **Shipped.** `clientdevbridge batch <file|->`, with `--continue-on-error` and `--json`.
 
 **The problem.** Building the ID network took roughly fifty CLI invocations. Each one
 paid a Node start, a session-file read, a TCP connect and a WebSocket handshake, and —
@@ -44,6 +47,8 @@ per line so a caller can parse the lot.
 
 ## 2. Keep one client alive, and actually use `hotswap` · docs, then cli
 
+> **Shipped.** `hotswap --restart-if-needed`, and the rule is in `AGENTS.md` and `docs/AGENT_WORKFLOW.md`.
+
 **The problem.** Client boot is 60–120 s and it dominated every iteration. `hotswap`
 has existed since the first release and went unused for this entire piece of work,
 because nothing said "use this instead of restarting" at the moment it mattered. Every
@@ -63,6 +68,8 @@ state that took twenty commands to build.
 **Payoff:** most of the wall-clock in any edit–verify loop.
 
 ## 3. `set-text` — one command for editing a text field · cli
+
+> **Shipped.** `clientdevbridge set-text <widget> <value> [--commit enter|tab|none]`.
 
 **The problem.** Setting a value in an edit box meant: click the widget, press
 BACKSPACE as many times as the old value is long, type the new value, then find and
@@ -96,6 +103,8 @@ matrix one command per hop.
 
 ## 5. Bindings that remove the `eval` classloader trap · mod
 
+> **Shipped.** Bound as `dev`: `pos`, `vec`, `block`, `blockId`, `blockEntity`, `nbt`, `item`.
+
 **The problem.** Game classes are loaded by the transforming class loader and the script
 engine is not, so `new net.minecraft.core.BlockPos(0, 4, 2)` fails with a message about
 class loaders that says nothing about the repair. `EvalHandler.hintFor` now explains it,
@@ -110,6 +119,8 @@ which is already the one place bindings are assembled.
 **Payoff:** turns a recurring dead end into a non-event.
 
 ## 6. `screenshot --diff` — make a visual change assertable · cli
+
+> **Shipped.** `clientdevbridge screenshot --diff <image.png> [--min-diff <pct>]`.
 
 **The problem.** Confirming the lamp went on and off meant taking two screenshots and
 looking at them. That works for a human reading the answer, and not at all inside a
@@ -139,6 +150,8 @@ Anyone adding a mod to a test then gets a compatible set in seconds.
 **Payoff:** turns an afternoon of trial and error into one command, the next time.
 
 ## 8. Do not poll — the rule that costs the most when ignored
+
+> **Shipped.** Written into `AGENTS.md`; there was nothing to build.
 
 **The problem.** This is a process failure rather than a missing feature, and it was the
 single biggest waste of the session: waiting on a Gradle build, a client boot or a CI run
