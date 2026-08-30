@@ -305,6 +305,84 @@ screen anywhere filters there, but it is the case that would most likely have sh
 
 ---
 
+## Found by driving Everlasting Abilities
+
+The whole task — download the mod, boot it, open the Ability Bottle a new player starts with, move
+an ability out of it, and confirm the move on a screenshot — took **9m 41s**, of which about two
+minutes was Gradle. Nothing had to be worked around by trial and error, which is the first time
+that has been true of a mod this bridge had never seen. Four gaps still showed up, and the first is
+the only one that made the task harder rather than merely less pleasant.
+
+### 1. There is no way to use the item in your hand · cli · the real gap
+
+Opening the Ability Bottle is a right-click holding it, aimed at nothing. Every use command this CLI
+has takes a block position: `use <x> <y> <z>`, `open-gui <x> <y> <z>`, `inspect-gui <x> <y> <z>`.
+There is no command for the plainest interaction in the game.
+
+It is reachable by accident — `click --at 213,120 --button 1` with no screen open falls through to
+the in-world use keybinding — but nothing says so, `--at` is meaningless there, and a reader of
+`--help` would never find it. Any mod whose main entry point is an item rather than a block hits
+this immediately.
+
+**The plan.** `clientdevbridge use-item [--hand main|off] [--wait-screen]`, over a new
+`player.useItem`. It is `InputControl.mouseClick`'s existing no-screen branch, given a name and a
+report: what was held, and what screen it opened. `open-gui` should take no coordinates as a way of
+saying "the held item", so the composite that waits for the screen works for items too.
+
+### 2. An in-world click reports the state before the game has acted · cli and mod
+
+`click --button 1` answered `screen: none` at the moment it opened a screen. Nothing is wrong with
+the value — it is read immediately, and the keybinding it queued is processed on the next tick, so
+"none" was true when it was measured and false a frame later.
+
+Every other input command is honest because a screen handles a click synchronously. This one is not,
+and it reads as a failure: a caller sees `screen: none` and concludes the click did nothing.
+
+**The plan.** When there is no screen, the in-world branch should wait a tick before reporting, the
+way `world.use` already does for a block interaction. `afterInput` becomes the same
+"queue, tick, then read" shape for the one case that needs it, rather than every caller having to
+know which branch it took.
+
+### 3. A mod's data components are opaque in `inventory` and `snapshot` · mod
+
+`inventory --json` reported the bottle's contents as
+`everlastingabilities:ability_store=>org.cyclops.everlastingabilities.api.capability.DefaultMutableAbilityStore@0`
+— the component's `toString`, which for most mod types is a class name and an identity hash. So the
+one field that says what is actually in the bottle is unreadable, and a caller cannot tell a full
+bottle from an empty one.
+
+This is the same problem `BlockExtractors` was added for, one layer over: a mod can already say what
+distinguishes one instance of its *block entity* from another, and has no way to say the same about
+its *item*.
+
+**The plan.** `ItemExtractors`, keyed by `Item` or by data-component type, merged into the `details`
+of every stack `PlayerControl.describeStack` produces — so it reaches `inventory`, the container
+block of `snapshot`, and `world.use`'s held-item reports at once, exactly as `BlockExtractors`
+reaches everything that describes a block.
+
+The workaround meanwhile is worth documenting, because it is genuinely good: Groovy dispatches on
+the object it is handed, so a script can call a mod's own methods without naming any of its classes.
+
+```groovy
+def store = player.getMainHandItem().getComponents()
+    .find { it.value().getClass().getSimpleName().contains("AbilityStore") }?.value()
+store.getAbilities()          // []
+```
+
+That is how the bottle was confirmed empty, and it needs no support from the mod at all.
+
+### 4. Nothing reads a list that is drawn rather than built from widgets · nothing to build yet
+
+The two ability lists are drawn directly, so `snapshot` shows six arrow buttons and no rows: the
+contents are only in the screenshot. Reading them meant looking.
+
+Worth recording and **not** worth building for. The arrows' `disabled` flags carried the state that
+mattered — selecting a row flipped `Left` from disabled to enabled, which is how the selection was
+confirmed without seeing anything — and a general "read the drawn text" facility is a much larger
+thing than this cost. Revisit if a second mod hits it.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
