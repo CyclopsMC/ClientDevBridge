@@ -29,9 +29,14 @@ public class SnapshotHandler {
         dispatcher.register("screen.tooltip", raw -> {
             Params params = new Params(raw);
             String space = Geometry.requireSpace(params.getString("space", Geometry.SPACE_GUI));
+            double x = params.getDouble("x");
+            double y = params.getDouble("y");
+            // Checked before the mouse is moved. Capturing a tooltip parks the cursor at the point
+            // asked about, so an off-screen point used to succeed *and* leave every later snapshot
+            // reporting an impossible cursor position.
+            Geometry.requireOnScreen(x, y, space);
             return ClientThread.submit(() -> TooltipCapture.at(
-                    Geometry.toGui(params.getDouble("x"), space),
-                    Geometry.toGui(params.getDouble("y"), space)));
+                    Geometry.toGui(x, space), Geometry.toGui(y, space)));
         });
     }
 

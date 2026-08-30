@@ -27,22 +27,28 @@ import javax.annotation.Nullable;
  */
 public class InputControl {
 
-    /** The last synthetic mouse position, so drags and clicks agree on where the pointer is. */
-    private static double mouseX;
-    private static double mouseY;
-
+    /**
+     * Where the pointer is, in GUI space, read from the game rather than remembered.
+     *
+     * This used to return the last position the bridge itself asked for, defaulting to 0,0. On a
+     * virtual display the real pointer starts at the centre of the window, so before any
+     * mouse-move a snapshot reported "mouse at 0,0" and, in the same breath, marked the centre
+     * slot hovered -- two true-looking statements that contradict each other, and the screenshot
+     * sided with the game.
+     */
     public static double getMouseX() {
-        return mouseX;
+        Window window = Minecraft.getInstance().getWindow();
+        return Minecraft.getInstance().mouseHandler.xpos
+                * window.getGuiScaledWidth() / (double) window.getScreenWidth();
     }
 
     public static double getMouseY() {
-        return mouseY;
+        Window window = Minecraft.getInstance().getWindow();
+        return Minecraft.getInstance().mouseHandler.ypos
+                * window.getGuiScaledHeight() / (double) window.getScreenHeight();
     }
 
     public static void mouseMove(double x, double y) {
-        mouseX = x;
-        mouseY = y;
-
         // Minecraft recomputes hover state every frame from MouseHandler's own position, so it has
         // to be written directly. Asking GLFW to move the cursor does not work: it is ignored while
         // the window is not focused, which it never is under a virtual display. Without this the

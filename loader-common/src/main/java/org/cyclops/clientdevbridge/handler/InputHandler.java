@@ -48,10 +48,13 @@ public class InputHandler {
             double[] to = params.getNumberArray("to", 2);
             int button = params.getInt("button", 0);
             int steps = params.getInt("steps", 8);
+            // Both ends go through the same check every other input command uses. This one used to
+            // convert the coordinates directly, so a drag to 9999,9999 dropped whatever it was
+            // carrying on the floor and reported success.
+            Point start = point(from[0], from[1], space);
+            Point end = point(to[0], to[1], space);
             return ClientThread.run(() -> InputControl.mouseDrag(
-                            Geometry.toGui(from[0], space), Geometry.toGui(from[1], space),
-                            Geometry.toGui(to[0], space), Geometry.toGui(to[1], space),
-                            button, steps))
+                            start.x(), start.y(), end.x(), end.y(), button, steps))
                     .thenApply(ignored -> afterInput());
         });
 
@@ -114,22 +117,13 @@ public class InputHandler {
     private static Point point(JsonObject raw, String xName, String yName) {
         Params params = new Params(raw);
         String space = Geometry.requireSpace(params.getString("space", Geometry.SPACE_GUI));
-        Point point = new Point(
-                Geometry.toGui(params.getDouble(xName), space),
-                Geometry.toGui(params.getDouble(yName), space));
-        // A point outside the window is not a click that missed, it is a caller working from stale
-        // coordinates -- and silently succeeding at nothing is the worst possible answer, because
-        // the next screenshot looks exactly like a click that did nothing.
-        int width = Geometry.guiWidth();
-        int height = Geometry.guiHeight();
-        if (point.x() < 0 || point.y() < 0 || point.x() > width || point.y() > height) {
-            throw RpcException.invalidParams(String.format(
-                    "Point %.0f,%.0f is outside the %dx%d screen (in %s space). "
-                            + "Take a fresh 'clientdevbridge snapshot': the coordinates it prints are "
-                            + "in GUI space, and the window may have been resized since the last one.",
-                    point.x(), point.y(), width, height, space));
-        }
-        return point;
+        return point(params.getDouble(xName), params.getDouble(yName), space);
+    }
+
+    /** Converts a caller's point into GUI space, refusing one that is not on screen. */
+    private static Point point(double x, double y, String space) {
+        Geometry.requireOnScreen(x, y, space);
+        return new Point(Geometry.toGui(x, space), Geometry.toGui(y, space));
     }
 
 }

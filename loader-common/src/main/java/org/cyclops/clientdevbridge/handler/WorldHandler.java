@@ -33,6 +33,12 @@ public class WorldHandler {
             String template = params.getString("template", null);
             String setup = params.getString("setup", null);
 
+            // Before anything is left or deleted: a typo'd template name must not cost the caller
+            // the world they already had.
+            if (template != null) {
+                WorldControl.requireTemplate(templatesRoot(projectDir), template);
+            }
+
             return ClientThread.runOnTick(WorldControl::leave)
                     .thenCompose(ignored -> awaitOutOfWorld())
                     .thenCompose(ignored -> ClientThread.runOnTick(() -> {
