@@ -84,13 +84,14 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `screen.close` | – | `{ screenClass: null }` |
 | `input.mouseMove` | `{ x, y, space? }` | `{ screenClass, mouse }` |
 | `input.mouseClick` | `{ x, y, button?, space? }` | `{ screenClass, mouse }` |
+| `input.slotClick` | `{ slot? \| x, y, button?, type? }` | `{ screenClass, mouse, slot, type }` |
 | `input.mouseDrag` | `{ from: [x,y], to: [x,y], button?, steps?, space? }` | `{ screenClass, mouse }` |
 | `input.scroll` | `{ x, y, dx?, dy, space? }` | `{ screenClass, mouse }` |
 | `input.key` | `{ key, action?: press\|release\|tap, modifiers? }` | `{ screenClass, mouse }` |
 | `input.type` | `{ text }` | `{ screenClass, mouse }` |
 | `input.hold` | `{ key, ticks }` | `{ screenClass, mouse }` |
 | `player.look` | `{ yaw, pitch }` or `{ at: [x,y,z] }` | `{ pos, yaw, pitch }` |
-| `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived, requested }` |
+| `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived, requested, falling }` |
 | `player.inventory` | – | `{ slots: [...], selected, carried }` |
 | `player.hotbar` | `{ slot }` | `{ selected }` |
 | `world.reset` | `{ name?, template?, setup? }` | `{ world, template, spawn, seed, platformY, platformRadius }` |
@@ -105,6 +106,37 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `window.resize` | `{ width, height, guiScale? }` | metrics |
 | `eval` | `{ language: "groovy", code }` | `{ value, stdout, language }` |
 | `log.tail` | `{ lines?, filter?, level? }` | `{ lines: [string], level, buffered }` |
+
+### Clicking a slot
+
+`input.mouseClick` cannot express a shift-click, and no parameter would fix it. A screen decides
+what a click meant *before* it acts: `AbstractContainerScreen.mouseClicked` works out a `ClickType`
+from the button and the modifiers, and the modifiers come from the static `Screen.hasShiftDown()`,
+which asks GLFW for the real keyboard state. Synthetic input never touches that state, and
+`Screen.mouseClicked(x, y, button)` has nowhere to pass one anyway.
+
+So `input.slotClick` names the operation instead of the input it would be inferred from. `type` is
+one of `pickup` (a plain click), `quick_move` (**shift-click**), `swap`, `clone`, `throw`,
+`quick_craft` or `pickup_all`.
+
+Give either `slot` — the index `screen.snapshot` already reports for every slot, which is the
+handle a caller usually has — or `x, y`, which resolves to the slot under that point and fails
+naming the screen if none covers it. The pointer is moved onto the slot first, so a screenshot
+taken afterwards shows the hover highlight where the click landed.
+
+What this does not do is run a screen's own `slotClicked` override, and there is no way to: it is
+`protected`. A mod that filters slot moves there is bypassed. Nothing found so far does; the
+alternative is a mixin on `hasShiftDown`, which this mod does not need yet.
+
+### Teleporting
+
+`player.teleport` waits for the player to *settle*, not merely to arrive. A target in the air is
+reached long before it is held — the player is still falling — and a reply sent then is true for one
+tick and wrong for every screenshot after it. `falling` is true only when that wait timed out with
+nothing under the player, and it means the `pos` in the same reply is already going stale.
+
+`requested` is what was asked for. Gravity acts between the two, so it and `pos` legitimately
+differ; a caller wanting a stable camera should check `arrived`.
 
 `wait.for` conditions: `screen` (value = simple or qualified class name), `noScreen`, `inWorld`,
 `outOfWorld`, `chunkLoaded` (value = `[x, y, z]`), `expr` (value = a Groovy expression).
@@ -167,6 +199,8 @@ on the game's side instead:
 | `dev.blockEntity(x, y, z)` | the `BlockEntity`, or null |
 | `dev.nbt(x, y, z)` | the block entity's synced data, as a string |
 | `dev.item("minecraft:stone"[, count])` | an `ItemStack` |
+| `dev.prop(x, y, z, "lit")` | one state property's value, as the game's own object |
+| `dev.props(x, y, z)` | every state property, as a name-to-value map |
 
 The code is a **script**, not a single expression: statements are allowed and the last one is its
 value. So negate the last statement, not the whole thing — `def p = dev.pos(0, 4, 2); !level.getBlockState(p).isAir()`,

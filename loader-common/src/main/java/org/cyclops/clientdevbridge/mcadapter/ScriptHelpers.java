@@ -6,6 +6,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
@@ -87,6 +88,56 @@ public class ScriptHelpers {
 
     public ItemStack item(String id) {
         return item(id, 1);
+    }
+
+    /**
+     * One of a block's state properties, by name -- {@code dev.prop(0, 4, 2, "lit")}.
+     *
+     * The direct route is {@code state.getValue(BlockStateProperties.LIT)}, which names a game class
+     * and so runs straight into the class loader wall this whole object exists to remove. Looking
+     * the property up by name needs nothing from the script's side.
+     *
+     * The value is the game's own object rather than its {@code toString}, so a script can compare
+     * it -- {@code dev.prop(x, y, z, "lit") == true} and {@code dev.prop(x, y, z, "power") > 0} both
+     * work, and neither would on a string.
+     */
+    public Comparable<?> prop(int x, int y, int z, String name) {
+        BlockState state = block(x, y, z);
+        Property<?> property = property(state, name);
+        if (property == null) {
+            // The caller is asking by name precisely because they do not know what is there, so an
+            // NPE out of getValue(null) is the least useful thing this could do.
+            throw new IllegalArgumentException(String.format(
+                    "%s at %d,%d,%d has no property '%s'. It has: %s",
+                    BuiltInRegistries.BLOCK.getKey(state.getBlock()), x, y, z, name,
+                    state.getProperties().isEmpty() ? "none"
+                            : state.getProperties().stream().map(Property::getName).sorted()
+                                    .collect(java.util.stream.Collectors.joining(", "))));
+        }
+        return state.getValue(property);
+    }
+
+    /**
+     * Every state property of a block, by name. This is the question that comes just before
+     * {@link #prop}, and answering it separately saves a round trip through a failed guess.
+     */
+    public java.util.Map<String, Comparable<?>> props(int x, int y, int z) {
+        BlockState state = block(x, y, z);
+        java.util.Map<String, Comparable<?>> values = new java.util.LinkedHashMap<>();
+        for (Property<?> property : state.getProperties()) {
+            values.put(property.getName(), state.getValue(property));
+        }
+        return values;
+    }
+
+    @Nullable
+    private static Property<?> property(BlockState state, String name) {
+        for (Property<?> property : state.getProperties()) {
+            if (property.getName().equals(name)) {
+                return property;
+            }
+        }
+        return null;
     }
 
 }

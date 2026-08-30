@@ -41,6 +41,31 @@ public class InputHandler {
                     .thenApply(ignored -> afterInput());
         });
 
+        dispatcher.register("input.slotClick", raw -> {
+            Params params = new Params(raw);
+            int button = params.getInt("button", 0);
+            if (button < 0 || button > 2) {
+                throw RpcException.invalidParams("Parameter 'button' must be 0 (left), 1 (right) or "
+                        + "2 (middle), but was " + button);
+            }
+            String type = params.getEnum("type", "pickup",
+                    "pickup", "quick_move", "swap", "clone", "throw", "quick_craft", "pickup_all");
+            // Either an index, which is what the snapshot reports and so what a caller usually has,
+            // or a point, for one working from a screenshot.
+            boolean byPoint = !params.has("slot");
+            Point point = byPoint ? point(raw, "x", "y") : null;
+            return ClientThread.submit(() -> {
+                int slot = byPoint
+                        ? InputControl.slotAt(point.x(), point.y())
+                        : params.getInt("slot");
+                InputControl.slotClick(slot, button, type);
+                JsonObject result = afterInput();
+                result.addProperty("slot", slot);
+                result.addProperty("type", type);
+                return result;
+            });
+        });
+
         dispatcher.register("input.mouseDrag", raw -> {
             Params params = new Params(raw);
             String space = Geometry.requireSpace(params.getString("space", Geometry.SPACE_GUI));
