@@ -21,6 +21,41 @@ clientdevbridge-cli  ──ws://127.0.0.1:25599──▶  Minecraft client JVM
 The CLI starts the client with a generated Gradle init script, so **consumer repositories are never
 edited**.
 
+## Where to put a change
+
+Two repositories, and most non-trivial changes touch both:
+
+| Repository | Holds | Branching |
+|---|---|---|
+| `CyclopsMC/ClientDevBridge` (this one) | the mod: transport, protocol, handlers, `mcadapter/` | one branch per Minecraft line |
+| `CyclopsMC/clientdevbridge-cli` | the CLI people run, and the recorded protocol fixtures | a single `master`, version-agnostic |
+
+A protocol change lands **mod-side first**, on the oldest affected branch, and upmerges; the CLI
+subcommand and re-recorded fixtures follow. The other order ships a CLI that talks to builds nobody
+can resolve yet.
+
+The branch table and the upmerge order live in [README.md](README.md) and
+[RELEASING.md](RELEASING.md). Which branch you target depends on your access:
+
+- **With push access here** — land the change on the oldest affected branch, then upmerge forwards
+  yourself:
+
+  ```bash
+  git checkout master-1.21-lts                            && ./gradlew build && git push
+  git checkout master-26-lts && git merge master-1.21-lts && ./gradlew build && git push
+  git checkout master-26     && git merge master-26-lts   && ./gradlew build && git push
+  ```
+
+  `./gradlew build` runs Spotless and the unit tests, and a merge that compiles on 1.21 can fail on
+  26 inside `mcadapter/` — pushing an unbuilt merge is the usual way these branches go red.
+  `git worktree` for the other two branches saves re-resolving each one's Minecraft dependencies.
+
+- **Without push access** — target **`master-1.21-lts`**, the lowest Minecraft line, and nothing
+  else; the maintainer upmerges from there. A pull request against `master-26*` is a change the
+  older branches silently lose. Only if the change genuinely cannot exist on 1.21 (it touches an
+  API that branch does not have) does it belong on a newer branch instead — say so in the pull
+  request.
+
 ## The one rule that matters: `mcadapter/`
 
 Everything that touches version-churning Minecraft internals lives in
