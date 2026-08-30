@@ -5,8 +5,6 @@ import net.minecraft.client.Minecraft;
 import org.cyclops.clientdevbridge.protocol.RpcException;
 import org.lwjgl.glfw.GLFW;
 
-import javax.annotation.Nullable;
-
 /**
  * Resizing the window and setting the GUI scale.
  *
