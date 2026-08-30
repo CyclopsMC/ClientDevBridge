@@ -6,6 +6,20 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 9 — making the loop faster
 
+- `player.useItem`: the right-click with nothing under the cursor, which is how a great many mods
+  open an item's own screen and the one interaction that had no method — everything else takes a
+  block position. It reports `aimedAt`, because a click aimed at a block interacts with the block
+  and never reaches the item, and without saying so that is indistinguishable from the item doing
+  nothing.
+- An in-world `input.mouseClick` now settles for five ticks before reporting. It queues a key
+  binding that Minecraft processes on the next tick, so reading immediately reported
+  `screen: none` at the moment a click opened one.
+- `ItemExtractors`: the item counterpart of `BlockExtractors`, merged into every stack description
+  at once. A stack's components print through `toString`, which for a mod's own component type is a
+  class name and an identity hash — so a container item full and empty described identically.
+  ClientDevBridge registers the vanilla cases itself: what block a `BlockItem` places, what a
+  container holds, and a damaged item's durability.
+
 - `input.slotClick`: a container click with an explicit `ClickType`, which is the only way to
   express a shift-click. A screen works out what a click meant from the static
   `Screen.hasShiftDown()`, which reads the real GLFW keyboard state, and `Screen.mouseClicked` has

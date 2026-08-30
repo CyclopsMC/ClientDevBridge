@@ -140,6 +140,15 @@ public class PlayerControl {
         if (!stack.getComponents().isEmpty()) {
             object.addProperty("components", stack.getComponents().toString());
         }
+        // Whatever the mod that owns the item says distinguishes one stack from another. The
+        // components string above is a toString, which for a mod's own component type is a class
+        // name and an identity hash -- so a container item full and empty describe identically
+        // without this.
+        JsonObject details = Json.object();
+        org.cyclops.clientdevbridge.snapshot.ItemExtractors.apply(stack, details);
+        if (!details.isEmpty()) {
+            object.add("details", details);
+        }
         return object;
     }
 

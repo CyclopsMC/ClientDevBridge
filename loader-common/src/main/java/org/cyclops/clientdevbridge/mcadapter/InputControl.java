@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -68,7 +69,11 @@ public class InputControl {
         }
     }
 
-    public static void mouseClick(double x, double y, int button) {
+    /**
+     * @return whether the click went to the world rather than to a screen, which the caller needs
+     *         because the two settle at different times -- see {@link #useItem}
+     */
+    public static boolean mouseClick(double x, double y, int button) {
         Screen screen = ClientState.screen();
         if (screen == null) {
             // No screen: a click is an in-world attack (0) or use (1).
@@ -76,12 +81,54 @@ public class InputControl {
                     ? Minecraft.getInstance().options.keyAttack
                     : Minecraft.getInstance().options.keyUse;
             KeyMapping.click(mapping.getDefaultKey());
-            return;
+            return true;
         }
         mouseMove(x, y);
         MouseButtonEvent event = mouseEvent(x, y, button, 0);
         screen.mouseClicked(event, false);
         screen.mouseReleased(event);
+        return false;
+    }
+
+    /**
+     * What the player is aimed at, which decides what a right-click does.
+     *
+     * A use aimed at a block interacts with the block and the held item is never reached -- correct,
+     * and the single most confusing way for {@link #useItem} to appear not to work. Reporting it
+     * turns "nothing happened" into "you were looking at a chest".
+     */
+    public static String aimedAt() {
+        net.minecraft.world.phys.HitResult hit = Minecraft.getInstance().hitResult;
+        return hit == null ? "none" : hit.getType().name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * Uses the held item on nothing -- the right-click that opens a book, drinks a potion or, for a
+     * great many mods, opens the item's own screen.
+     *
+     * The plainest interaction in the game and the one thing that had no command: everything else
+     * here takes a block position, so a mod whose entry point is an item rather than a block could
+     * not be reached at all except by knowing that an in-world {@code mouseClick} falls through to
+     * this key binding.
+     *
+     * The binding is <em>queued</em>, not performed: Minecraft processes it in the next tick's
+     * {@code handleKeybinds}, and whatever it does then may itself be a server round trip. So this
+     * returns having started something, and the caller waits.
+     */
+    public static void useItem(@Nullable InteractionHand hand) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (hand == null) {
+            // The key binding, which is what a player presses. It decides for itself whether the
+            // click is a block interaction, an entity interaction or an item use, and which hand
+            // to use -- and getting that decision for free is the whole reason to go through it.
+            KeyMapping.click(minecraft.options.keyUse.getDefaultKey());
+            return;
+        }
+        // A named hand is not something a player can ask for: the binding tries the main hand and
+        // falls through to the off hand only if the first does nothing. This is the call it makes
+        // once it has chosen, so a caller testing an off-hand item can reach it directly -- at the
+        // cost of skipping the block-or-item decision, which is why it is not the default.
+        minecraft.gameMode.useItem(ClientState.requirePlayer(), hand);
     }
 
     /**
