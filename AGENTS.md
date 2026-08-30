@@ -78,6 +78,30 @@ subscribing to loader-specific events, which is why both loaders report them at 
 Prefer this. Adding a loader-specific event means two implementations that can drift; adding a
 mixin means one more thing to port. There are currently **no mixins**, and that is worth keeping.
 
+## Blocks that decide what you clicked for themselves
+
+A vanilla block reads the `BlockHitResult` it is handed, so any face works and the bridge got away
+with always aiming at the block's centre. Multipart blocks do not. CyclopsCore's
+`VoxelShapeComponents` — which Integrated Dynamics' cables, Integrated Tunnels and Integrated
+Terminals all use — throws the hit result away and casts its own ray from the **server** player's
+eye along their look angle to decide which sub-part was clicked.
+
+So an interaction has two halves, and `Aim` carries both: the point that goes into the hit result,
+and the position and rotation that make the ray arrive through the intended face. Three things have
+to be true before the click, and each was a real bug:
+
+1. The player has arrived. The server ignores interactions from a client it is still awaiting a
+   teleport confirmation from.
+2. The player is aimed **from where they arrived**. `lookAt` measures from the current position, so
+   aiming before the teleport lands aims from the position they have not left yet.
+3. The server has the rotation. It only arrives on the next movement packet, so a click in the same
+   tick is evaluated against the previous one.
+
+`world.use` is the general right-click and `screen.open` is it plus a wait for a screen. Anything
+that needs a real interaction should go through them rather than constructing a menu directly:
+opening a part's GUI out of band would skip everything the mod does on interaction, which is the
+behaviour under test.
+
 ## Threading — read this before writing a handler
 
 Minecraft's client thread is a `ReentrantBlockableEventLoop`. Three rules follow, and each one was
@@ -123,6 +147,7 @@ every frame and no game rule stops them. A golden image containing one needs `--
 ./gradlew spotlessApply         # formatting
 ./scripts/e2e.sh neoforge       # full end-to-end against a real client
 ./scripts/e2e.sh fabric
+./scripts/e2e-multipart.sh      # opt-in: the same, against Integrated Dynamics' cables
 ```
 
 Unit tests cover the version-independent layers — the WebSocket framing, the JSON-RPC dispatcher,
@@ -133,6 +158,13 @@ touches the game is covered by `scripts/e2e.sh`, which boots a real client.
 `CyclopsMC/Flopper` on the matching branch when CyclopsCore is resolvable, or `e2e/consumer` — a
 minimal fixture in this repository that depends on nothing but the loader. Flopper is the better
 test bed; the fixture is what keeps the suite runnable without package credentials.
+
+`scripts/e2e-multipart.sh` is separate because it downloads Integrated Dynamics and its
+dependencies from Modrinth, and the main suite stays runnable with no network beyond what a Gradle
+build already needs. It is the only test that covers a block resolving a click by raytrace rather
+than by hit result, so run it after touching `Aim`, `Interaction` or anything they feed. It resolves
+the newest build that this branch's NeoForge can actually load, and skips rather than fails when
+there is none or Modrinth is unreachable.
 
 **Both must pass before committing.** Run the loader you did not touch too: the two have diverged
 in behaviour before, and only the end-to-end run catches it.

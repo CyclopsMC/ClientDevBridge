@@ -19,6 +19,13 @@ import org.cyclops.clientdevbridge.protocol.RpcException;
  */
 public class PlayerControl {
 
+    /**
+     * A standing player's eye height. Only used to place the player so that their <em>eyes</em>
+     * end up where an aim wants them, which a teleport cannot express directly because it moves
+     * the feet.
+     */
+    public static final double EYE_HEIGHT = 1.62d;
+
     public static void look(float yaw, float pitch) {
         LocalPlayer player = ClientState.requirePlayer();
         player.setYRot(yaw);
