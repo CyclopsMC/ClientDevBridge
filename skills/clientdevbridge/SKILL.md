@@ -17,7 +17,11 @@ clientdevbridge doctor    # or: npx @cyclopsmc/clientdevbridge-cli doctor
 ```
 
 If `doctor` reports problems, fix those first — it prints the exact command for each. On a headless
-Linux box the usual missing piece is `sudo apt-get install -y xvfb libgl1-mesa-dri`.
+Linux box the usual missing piece is `sudo apt-get install -y xvfb libgl1-mesa-dri`. A `warn` line
+needs nothing done: it is something the CLI works around, and it says what it did.
+
+If `doctor` reports no ClientDevBridge build for the mod's Minecraft version, run
+`./gradlew publishToMavenLocal` in a ClientDevBridge checkout of the matching branch.
 
 ## The loop
 

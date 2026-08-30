@@ -7,6 +7,7 @@ in the agent itself.
 ## Quick start
 
 ```bash
+# Any branch's copy of this script does the same thing; pick the one for your Minecraft version.
 curl -fsSL https://raw.githubusercontent.com/CyclopsMC/ClientDevBridge/master-1.21-lts/scripts/cloud-setup.sh | bash
 # or, from a checkout:
 ./scripts/cloud-setup.sh --project path/to/your/mod

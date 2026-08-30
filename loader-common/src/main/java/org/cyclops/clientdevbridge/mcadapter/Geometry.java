@@ -51,6 +51,15 @@ public class Geometry {
         return space;
     }
 
+    /** The GUI-space width of the screen, which is what every coordinate the bridge reports is in. */
+    public static int guiWidth() {
+        return window().getGuiScaledWidth();
+    }
+
+    public static int guiHeight() {
+        return window().getGuiScaledHeight();
+    }
+
     /**
      * The metrics block that every snapshot and screenshot result carries, so a caller can always
      * relate what it is looking at to the coordinates it should send back.

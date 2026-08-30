@@ -61,17 +61,38 @@ public class ScreenControl {
     }
 
     /**
+     * How much closer than the reach limit the player has to already be for the teleport to be
+     * skipped. Sitting exactly on the limit would make the interaction depend on rounding.
+     */
+    private static final double REACH_MARGIN = 0.5d;
+
+    /**
      * Puts the player a couple of blocks away from the target and looks straight at it.
      *
-     * The caller must wait for the player to actually arrive before clicking: the teleport goes
-     * through the integrated server, and until the new position has come back the server still
-     * believes the player is wherever it was, and silently rejects the interaction as out of
-     * reach. {@link #approachTarget(BlockPos)} is what to wait for.
+     * When the player can already reach the block, nothing is teleported. That is not just an
+     * optimisation: a teleport the player does not need is actively harmful, because the server
+     * ignores interactions from a client it is still waiting on a teleport confirmation from. The
+     * position hardly changes in that case, so waiting for the player to "arrive" returns
+     * immediately, the click goes out during the confirmation window, and the server drops it
+     * without a word. It is exactly the state a previous {@code screen.open} leaves the player in,
+     * which made every repeated call fail.
+     *
+     * When it does teleport, the caller must wait for the player to arrive before clicking, for
+     * the same underlying reason. {@link #approachTarget(BlockPos)} is what to wait for.
+     *
+     * @return whether the player was teleported
      */
-    public static void approach(BlockPos pos) {
+    public static boolean approach(BlockPos pos) {
+        LocalPlayer player = ClientState.requirePlayer();
+        Vec3 center = Vec3.atCenterOf(pos);
+        PlayerControl.lookAt(center);
+        if (player.getEyePosition().distanceTo(center) <= player.blockInteractionRange() - REACH_MARGIN) {
+            return false;
+        }
         double[] target = approachTarget(pos);
         CommandRunner.run(String.format("tp @s %.2f %.2f %.2f 0 30", target[0], target[1], target[2]));
-        PlayerControl.lookAt(Vec3.atCenterOf(pos));
+        PlayerControl.lookAt(center);
+        return true;
     }
 
     /**
@@ -90,10 +111,15 @@ public class ScreenControl {
         double distance = player.getEyePosition().distanceTo(Vec3.atCenterOf(pos));
         String block = net.minecraft.core.registries.BuiltInRegistries.BLOCK
                 .getKey(ClientState.requireLevel().getBlockState(pos).getBlock()).toString();
+        String reason = distance > player.blockInteractionRange()
+                ? "The player ended up %.1f blocks away, past the %.1f reach limit, so the server "
+                        + "rejected the click."
+                : "The player is %.1f blocks away, inside the %.1f reach limit, so the click was "
+                        + "delivered and the block simply opened nothing.";
         return String.format(
-                "Right-clicking %s at %s opened no screen. The player is %.1f blocks away "
-                        + "(reach %.1f). If that block has no GUI this is expected; otherwise check "
-                        + "'clientdevbridge block %d %d %d' and try again with more ticks.",
+                "Right-clicking %s at %s opened no screen. " + reason
+                        + " Blocks without a GUI do nothing here, which is expected; if this one "
+                        + "should have opened something, check 'clientdevbridge block %d %d %d'.",
                 block, pos.toShortString(), distance, player.blockInteractionRange(),
                 pos.getX(), pos.getY(), pos.getZ());
     }
