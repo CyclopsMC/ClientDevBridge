@@ -52,9 +52,13 @@ public class PlayerHandler {
             // position packet comes back. Returning before then reports the old position and, far
             // worse, lets the next screenshot catch the camera mid-move -- which silently poisons
             // a golden image recorded straight after a teleport.
+            //
+            // Waiting for the landing and not merely the arrival, because a target in the air is
+            // reached long before it is held: the player is still falling, and a reply sent then is
+            // true for one tick and wrong for every screenshot after it.
             return ClientThread.run(() -> PlayerControl.teleport(x, y, z, yaw, pitch))
                     .thenCompose(ignored -> McAdapter.tickClock().awaitCondition(
-                            () -> PlayerControl.isAt(x, y, z), ARRIVAL_TIMEOUT_TICKS, null))
+                            () -> PlayerControl.isSettledAt(x, y, z), ARRIVAL_TIMEOUT_TICKS, null))
                     .thenCompose(arrived -> ClientThread.submit(() -> {
                         JsonObject state = playerState();
                         state.addProperty("arrived", arrived);
@@ -62,6 +66,10 @@ public class PlayerHandler {
                         // between the two, so the same command reports y=5 or y=4 depending on how
                         // many ticks the round trip took -- which reads as a bug and is not one.
                         state.add("requested", Json.arrayOfNumbers(x, y, z));
+                        // Only ever true when the wait timed out, and then it is the whole
+                        // explanation: nothing is holding the player up, so the position in this
+                        // reply is already out of date and will keep going.
+                        state.addProperty("falling", PlayerControl.isFalling());
                         return state;
                     }));
         });

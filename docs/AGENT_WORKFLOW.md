@@ -86,6 +86,17 @@ clientdevbridge type "hello"                    # into the focused widget
 clientdevbridge key ESCAPE
 ```
 
+**Shift-click is `slot-click`.** A screen works out that a click was a shift-click from the real
+keyboard state, which synthetic input cannot reach, so the operation is named rather than inferred:
+
+```bash
+clientdevbridge slot-click 12 --type quick_move   # move the stack to the other inventory
+clientdevbridge click --at 125,202 --shift        # the same thing, by point
+```
+
+The index is the one `snapshot --json` reports for each slot. `--type` also takes `pickup`, `swap`,
+`clone`, `throw`, `quick_craft` and `pickup_all`.
+
 For a text field, use `set-text` rather than assembling the edit yourself:
 
 ```bash

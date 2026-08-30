@@ -4,6 +4,9 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -79,6 +82,72 @@ public class InputControl {
         MouseButtonEvent event = mouseEvent(x, y, button, 0);
         screen.mouseClicked(event, false);
         screen.mouseReleased(event);
+    }
+
+    /**
+     * Clicks a container slot with an explicit operation -- the shift-click that a plain
+     * click cannot express.
+     *
+     * A screen decides what a click means before it acts: {@code AbstractContainerScreen.mouseClicked}
+     * works out which operation the button and the modifiers meant, and then calls
+     * {@code slotClicked}. The modifiers it reads come from the static {@code Screen.hasShiftDown()},
+     * which asks GLFW for the real keyboard state -- so no amount of synthetic input reaches it, and
+     * {@code mouseClicked} takes no modifiers to pass either. That whole route is closed.
+     *
+     * What is open is saying which operation was meant. {@code quick_move} <em>is</em> shift-click;
+     * naming it skips a guess rather than faking the input the guess is made from.
+     *
+     * The one thing this does not do is run a screen's own {@code slotClicked} override, and there
+     * is no way to: it is {@code protected}. A mod that filters slot moves there would be bypassed.
+     * Nothing found so far does, and the alternative -- a mixin on {@code hasShiftDown} -- buys that
+     * case with the first injection point in a mod that has none.
+     */
+    public static void slotClick(int slotId, int button, String type) {
+        AbstractContainerScreen<?> screen = requireContainerScreen();
+        AbstractContainerMenu menu = screen.getMenu();
+        if (slotId < 0 || slotId >= menu.slots.size()) {
+            throw RpcException.invalidParams(String.format(
+                    "Parameter 'slot' must be one of this screen's %d slots (0-%d), but was %d. "
+                            + "'clientdevbridge snapshot --json' lists them with their indices.",
+                    menu.slots.size(), menu.slots.size() - 1, slotId));
+        }
+
+        // The pointer goes to the slot first. Nothing in the click needs it, but the screen renders
+        // its hover highlight from the real pointer position, so a screenshot taken afterwards would
+        // otherwise show the highlight somewhere else entirely.
+        Slot slot = menu.slots.get(slotId);
+        mouseMove(screen.leftPos + slot.x + 8, screen.topPos + slot.y + 8);
+
+        // Which enum names the operation, and which method performs it, both moved in Minecraft
+        // 26; SlotInput is where that difference lives.
+        SlotInput.perform(menu.containerId, slotId, button, type);
+    }
+
+    /**
+    /** The slot whose rectangle contains a GUI-space point, for callers that have a click, not an index. */
+    public static int slotAt(double x, double y) {
+        AbstractContainerScreen<?> screen = requireContainerScreen();
+        for (Slot slot : screen.getMenu().slots) {
+            double left = screen.leftPos + slot.x;
+            double top = screen.topPos + slot.y;
+            if (x >= left && x < left + 16 && y >= top && y < top + 16) {
+                return slot.index;
+            }
+        }
+        throw RpcException.invalidParams(String.format(
+                "No slot covers %.0f,%.0f on %s. 'clientdevbridge snapshot --json' lists every slot "
+                        + "with its position; pass the index instead of a point.",
+                x, y, screen.getClass().getSimpleName()));
+    }
+
+    private static AbstractContainerScreen<?> requireContainerScreen() {
+        Screen screen = ClientState.screen();
+        if (!(screen instanceof AbstractContainerScreen<?> container)) {
+            throw RpcException.illegalState(screen == null
+                    ? "No screen is open, so there are no slots to click."
+                    : screen.getClass().getSimpleName() + " has no slots; only a container screen does.");
+        }
+        return container;
     }
 
     public static void mouseDrag(double fromX, double fromY, double toX, double toY, int button, int steps) {
