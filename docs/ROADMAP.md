@@ -165,6 +165,35 @@ completion signal. Never re-check a thing whose completion will announce itself.
 
 ---
 
+## Found by rebuilding the Integrated Dynamics clock
+
+A second run of the same task, with the tooling above in place, turned up three more. They are
+small and they each cost real minutes.
+
+### `click` cannot shift-click · cli
+
+Moving a stack between a container and the inventory is one shift-click for a player and two
+commands plus an empty-slot hunt here. `click --modifiers <n>` is rejected, so there is no way to
+express it at all. `input.mouseClick` already carries a button; it needs the modifier bits too, and
+`click` needs `--modifiers` and probably `--shift` as a name for the only one anybody wants.
+
+### `dev` cannot read a block property · mod
+
+`dev.block(x, y, z)` answers a `BlockState`, and the obvious next question — is the lamp lit? — is
+`state.getValue(BlockStateProperties.LIT)`, which names a game class and so hits the very class
+loader wall `dev` exists to remove. The workaround is
+`state.getValue(state.getProperties().find { it.getName() == "lit" })`, which nobody would guess.
+`dev.prop(x, y, z, "lit")` would close it.
+
+### A teleport onto thin air is a silent trap · cli
+
+`teleport` puts the player where it is told; gravity then moves them, and every screenshot after
+that is of somewhere else. It cost two rounds of captures here, both of empty grass, because
+nothing said the player had moved. `teleport` should report the position it settled at rather than
+the one it asked for, or warn when the block below is not solid.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
