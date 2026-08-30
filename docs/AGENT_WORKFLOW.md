@@ -108,6 +108,28 @@ within a screen.
 clientdevbridge find "Apply" --type Button
 ```
 
+## `setblock` places a block; it does not place it *the way a player does*
+
+`setblock` writes a block state. That is all it does, and for most blocks it is enough. Two kinds
+of block need a real placement instead, and both fail in ways that look like the bridge is broken:
+
+- **Blocks that build something on placement.** An Integrated Dynamics cable joins a network in its
+  own placement logic, so a `setblock` cable is a cable that belongs to no network — every part on
+  it reports `part_not_in_network` and nothing works. Place them:
+
+  ```bash
+  clientdevbridge command "item replace entity @s weapon.mainhand with integrateddynamics:cable 64"
+  clientdevbridge use 0 3 0 --face up      # places at 0,4,0
+  ```
+
+- **Redstone components.** A `setblock` repeater, torch or comparator is dropped in without the
+  neighbour update that would make it evaluate its input, so it sits inert at its default state
+  however much power is next to it. Changing any neighbour afterwards wakes it — including
+  `setblock`ing the same position twice, or a block above it. Do not poke the block a torch is
+  attached to: removing its support breaks the torch.
+
+Vanilla blocks with no placement logic — lamps, dust, solid blocks — are fine with `setblock`.
+
 ## Setting up a scene
 
 `world-reset` deletes and regenerates a creative superflat world with time, weather, mobs and
@@ -134,7 +156,7 @@ a point) to say **where** on the block. Most blocks do not care. Multipart block
 part on each side — care about nothing else:
 
 ```bash
-clientdevbridge setblock 0 4 2 integrateddynamics:cable
+clientdevbridge use 0 3 2 --face up             # place the cable (setblock skips its network)
 clientdevbridge command "item replace entity @s weapon.mainhand with integrateddynamics:part_redstone_writer 1"
 clientdevbridge use 0 4 2 --face up            # place the part on the top side
 clientdevbridge command "item replace entity @s weapon.mainhand with minecraft:air"
@@ -148,6 +170,20 @@ successful placement can legitimately report no visible change.
 
 Without `--face` a click lands on the block's centre, which on a cable reaches whichever part
 happens to be in the way — usually none.
+
+**A part whose side faces a solid block cannot be reached from that side.** The part's shape lives
+inside the cable's own block, but the ray to it has to travel through the neighbour, and it stops
+at the neighbour. A redstone reader pointed at a machine is the normal case, and it is exactly the
+case `--face` alone cannot open. Aim down at the part's strip from above instead: a part occupies
+roughly the outer fifth of the block on its side, so for a part on the *south* face of a cable at
+`x,y,z` that is
+
+```bash
+clientdevbridge open-gui x y z --face up --at <x+0.5>,<y+1>,<z+0.9>
+```
+
+The `0.9` is the part's own slice of the block. Point-aiming beats face-aiming whenever the
+straight-on approach is blocked.
 
 ## Golden screenshots
 
