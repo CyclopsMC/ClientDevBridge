@@ -114,9 +114,22 @@ public class InputHandler {
     private static Point point(JsonObject raw, String xName, String yName) {
         Params params = new Params(raw);
         String space = Geometry.requireSpace(params.getString("space", Geometry.SPACE_GUI));
-        return new Point(
+        Point point = new Point(
                 Geometry.toGui(params.getDouble(xName), space),
                 Geometry.toGui(params.getDouble(yName), space));
+        // A point outside the window is not a click that missed, it is a caller working from stale
+        // coordinates -- and silently succeeding at nothing is the worst possible answer, because
+        // the next screenshot looks exactly like a click that did nothing.
+        int width = Geometry.guiWidth();
+        int height = Geometry.guiHeight();
+        if (point.x() < 0 || point.y() < 0 || point.x() > width || point.y() > height) {
+            throw RpcException.invalidParams(String.format(
+                    "Point %.0f,%.0f is outside the %dx%d screen (in %s space). "
+                            + "Take a fresh 'clientdevbridge snapshot': the coordinates it prints are "
+                            + "in GUI space, and the window may have been resized since the last one.",
+                    point.x(), point.y(), width, height, space));
+        }
+        return point;
     }
 
 }

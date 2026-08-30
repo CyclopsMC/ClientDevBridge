@@ -35,7 +35,10 @@ public class ScreenHandler {
             double[] pos = params.getNumberArray("blockPos", 3);
             boolean approach = params.getBoolean("approach", true);
             BlockPos blockPos = new BlockPos((int) pos[0], (int) pos[1], (int) pos[2]);
-            String before = ClientState.screenClass();
+            // The screen *instance*, not its class name: re-opening the same kind of screen is a
+            // perfectly ordinary thing to do, and comparing names would report it as nothing
+            // having happened.
+            net.minecraft.client.gui.screens.Screen before = ClientState.screen();
 
             // Approaching teleports through the integrated server, so the click has to wait for the
             // new position to round-trip; clicking in the same tick is still done from the old one,
@@ -45,17 +48,20 @@ public class ScreenHandler {
             // position only moves when the server's teleport arrives, so arriving is the signal.
             double[] target = ScreenControl.approachTarget(blockPos);
             java.util.concurrent.CompletableFuture<?> positioned = approach
-                    ? ClientThread.run(() -> ScreenControl.approach(blockPos))
-                            .thenCompose(ignored -> McAdapter.tickClock().awaitCondition(
-                                    () -> PlayerControl.isAt(target[0], target[1], target[2]),
-                                    APPROACH_TIMEOUT_TICKS, null))
+                    ? ClientThread.submit(() -> ScreenControl.approach(blockPos))
+                            .thenCompose(teleported -> Boolean.TRUE.equals(teleported)
+                                    ? McAdapter.tickClock().awaitCondition(
+                                            () -> PlayerControl.isAt(target[0], target[1], target[2]),
+                                            APPROACH_TIMEOUT_TICKS, null)
+                                    // Nothing was teleported, so there is nothing to wait for and
+                                    // no confirmation pending.
+                                    : java.util.concurrent.CompletableFuture.completedFuture(null))
                     : java.util.concurrent.CompletableFuture.completedFuture(null);
 
             return positioned
                     .thenCompose(ignored -> ClientThread.run(() -> ScreenControl.openBlock(blockPos, false)))
                     .thenCompose(ignored -> McAdapter.tickClock().awaitCondition(
-                            () -> ClientState.screenClass() != null
-                                    && !java.util.Objects.equals(ClientState.screenClass(), before),
+                            () -> ClientState.screen() != null && ClientState.screen() != before,
                             OPEN_TIMEOUT_TICKS, null))
                     .thenCompose(opened -> ClientThread.submit(() -> {
                         JsonObject result = Json.object();

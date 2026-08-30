@@ -27,6 +27,7 @@ On connect the mod immediately sends:
     "loader": "neoforge",
     "clientDevBridgeVersion": "1.0.0",
     "evalEnabled": true,
+    "projectDir": "/home/me/mods/yourmod",
     "mods": ["clientdevbridge", "minecraft", "neoforge"]
   }
 }
@@ -89,7 +90,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `input.type` | `{ text }` | `{ screenClass, mouse }` |
 | `input.hold` | `{ key, ticks }` | `{ screenClass, mouse }` |
 | `player.look` | `{ yaw, pitch }` or `{ at: [x,y,z] }` | `{ pos, yaw, pitch }` |
-| `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived }` |
+| `player.teleport` | `{ x, y, z, yaw?, pitch? }` | `{ pos, yaw, pitch, arrived, requested }` |
 | `player.inventory` | – | `{ slots: [...], selected, carried }` |
 | `player.hotbar` | `{ slot }` | `{ selected }` |
 | `world.reset` | `{ name?, template?, setup? }` | `{ world, template, spawn, seed, platformY, platformRadius }` |
