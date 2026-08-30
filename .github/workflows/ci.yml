@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # Lifted to the job so that a step's `if:` can test it. The `secrets` context is not in scope
+      # for a step-level `if`, and a step's own `env:` block is not in scope for its own `if`
+      # either -- both read as empty, and the step silently never runs.
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -59,6 +64,56 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_KEY: ${{ secrets.MAVEN_KEY }}
         run: ./gradlew publish
+      - name: 'Publish to the releases Maven'
+        # A static Maven repository committed to CyclopsMC/ClientDevBridge-Releases and served by
+        # GitHub Pages. That is where clientdevbridge-cli resolves the mod from, and the reason it
+        # is not the CyclopsMC GitHub Packages Maven is that GitHub Packages needs a token even for
+        # public packages -- which every consumer would otherwise have to set up before they could
+        # launch a client.
+        #
+        # The releases repository is checked out and published *into*, rather than staged fresh:
+        # Gradle merges each artifact's maven-metadata.xml with the one already there, and that
+        # file is what makes dynamic versions ('+') resolvable. Staging into an empty directory
+        # would silently rewrite the version history down to whatever this run built.
+        #
+        # The token is tested in the condition rather than in the script so that a fork, or this
+        # repository before the secret is configured, skips the step instead of failing the build.
+        if: startsWith(github.ref, 'refs/heads/master') && env.RELEASES_TOKEN != ''
+        run: |
+          set -euo pipefail
+          RELEASES_DIR="$RUNNER_TEMP/releases"
+          # Not a shallow clone: the retry below rebases, and rebasing across a shallow boundary is
+          # the kind of thing that works until the day it does not.
+          git clone "https://x-access-token:${RELEASES_TOKEN}@github.com/CyclopsMC/ClientDevBridge-Releases.git" \
+            "$RELEASES_DIR"
+          cd "$RELEASES_DIR"
+          BRANCH="$(git symbolic-ref --short HEAD)"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          PAGES_MAVEN_DIR="$RELEASES_DIR" "$GITHUB_WORKSPACE/gradlew" -p "$GITHUB_WORKSPACE" publish --no-daemon
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "Nothing changed in the releases Maven."
+            exit 0
+          fi
+          git add -A
+          git commit -m "${{ github.repository }}@${GITHUB_SHA::7}: ${GITHUB_REF_NAME} build ${GITHUB_RUN_NUMBER}"
+
+          # Three branches publish into this one repository and can finish at the same time. They
+          # write disjoint paths -- every artifact id carries its Minecraft version -- so a rebase
+          # always applies cleanly; the retry is for the push race, not for a conflict.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:$BRANCH"; then
+              exit 0
+            fi
+            echo "Push rejected, rebasing and retrying ($attempt/5)"
+            sleep $(( attempt * 3 ))
+            git fetch origin "$BRANCH"
+            git rebase "origin/$BRANCH"
+          done
+          echo "::error::Could not push to the releases Maven after 5 attempts."
+          exit 1
       - name: 'Attach the jars to a GitHub release'
         # CI artifacts expire after 90 days and need a login to download; a release asset does
         # neither. This is for humans and for pinning a known build -- Gradle still resolves the

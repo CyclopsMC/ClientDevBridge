@@ -212,6 +212,19 @@ publishing {
         } else {
             logger.info('No remote maven repo was set, only mavenLocal publishing is available')
         }
+
+        // A plain directory to stage a static Maven repository into, which CI then commits to the
+        // ClientDevBridge-Releases repository and GitHub Pages serves. Deliberately additive
+        // rather than another branch of the chain above -- a build may want both -- and
+        // deliberately without a credentials block, because a file repository has nothing to
+        // authenticate against and Gradle fails the task outright when credentials have no value.
+        if (System.getenv("PAGES_MAVEN_DIR")) {
+            logger.info('Staging a static maven repository in ' + System.getenv("PAGES_MAVEN_DIR"))
+            maven {
+                name = 'pagesStaging'
+                url = file(System.getenv("PAGES_MAVEN_DIR")).toURI()
+            }
+        }
     }
 
     publications { PublicationContainer publicationContainer ->
