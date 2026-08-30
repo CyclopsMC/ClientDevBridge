@@ -21,8 +21,8 @@ would see. A bug is usually a disagreement between the two.
 
 ```bash
 cd path/to/your/mod
-npx @cyclopsmc/clientdevbridge-cli doctor    # can this machine build and launch a client?
-npx @cyclopsmc/clientdevbridge-cli start     # ~2 min cold, headless if there is no $DISPLAY
+npx cyclops-clientdevbridge-cli doctor    # can this machine build and launch a client?
+npx cyclops-clientdevbridge-cli start     # ~2 min cold, headless if there is no $DISPLAY
 ```
 
 `start` returns only once the client has finished loading and is ready to be driven. It leaves the

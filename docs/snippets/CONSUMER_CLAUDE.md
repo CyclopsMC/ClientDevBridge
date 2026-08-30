@@ -10,8 +10,8 @@ change a GUI, a screen, a container, or anything that renders — do not guess a
 like when you can look.
 
 ```bash
-npx @cyclopsmc/clientdevbridge-cli doctor   # first time, or if something is wrong
-npx @cyclopsmc/clientdevbridge-cli start    # ~2 min cold; leave it running between commands
+npx cyclops-clientdevbridge-cli doctor   # first time, or if something is wrong
+npx cyclops-clientdevbridge-cli start    # ~2 min cold; leave it running between commands
 ```
 
 Nothing needs to be added to this repository: the mod is injected at launch through a generated
