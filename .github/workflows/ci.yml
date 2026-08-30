@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -57,6 +59,34 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_KEY: ${{ secrets.MAVEN_KEY }}
         run: ./gradlew publish
+      - name: 'Attach the jars to a GitHub release'
+        # CI artifacts expire after 90 days and need a login to download; a release asset does
+        # neither. This is for humans and for pinning a known build -- Gradle still resolves the
+        # mod from the Maven, and nothing about the artifact names depends on which branch tagged
+        # them, since every jar carries its Minecraft version and loader.
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          shopt -s nullglob
+          jars=()
+          for jar in loader-*/build/libs/*.jar; do
+            case "$jar" in
+              *-sources.jar|*-javadoc.jar|*-deobf.jar) continue ;;
+            esac
+            jars+=("$jar")
+          done
+          if [[ ${#jars[@]} -eq 0 ]]; then
+            echo "::error::The build produced no jars to attach."
+            exit 1
+          fi
+          # Idempotent: re-running a tag's workflow replaces the assets rather than failing.
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "Minecraft $(grep -oP '^minecraft_version=\K.*' gradle.properties). See CHANGELOG.md." \
+            --verify-tag
+          gh release upload "$TAG" "${jars[@]}" --clobber
 
   e2e:
     name: End to end (${{ matrix.loader }})
