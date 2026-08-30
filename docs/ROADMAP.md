@@ -410,6 +410,82 @@ thing than this cost. Revisit if a second mod hits it.
 
 ---
 
+## Found by trying to mine a block
+
+The task: give the player a diamond pickaxe, put cobblestone in front of them, switch to survival,
+break the block with the pickaxe, and pick up what drops. **All of it works** — but the breaking
+only through `eval`, and that is the gap. Two and three quarter minutes to establish, most of it
+Gradle.
+
+Everything except the mining is a command already: `give`, `setblock`, `command "gamemode survival"`,
+`teleport`, `look`, and `hold-key W` to walk onto the drop, which the player picked up. The mining
+had to be this:
+
+```groovy
+def pos = dev.pos(0, 4, 2)
+def face = mc.hitResult.getDirection()
+mc.gameMode.startDestroyBlock(pos, face)
+while (!level.getBlockState(pos).isAir()) { mc.gameMode.continueDestroyBlock(pos, face) }
+```
+
+It works — the block broke in eight iterations, dropped a cobblestone `ItemEntity`, and the pickaxe
+took one point of durability, so the server agreed it was a genuine mining action rather than a
+block being deleted. But nobody would find it, and it is wrong in one way that matters: it spins
+`continueDestroyBlock` inside a single tick, where a player takes eight. That works against an
+integrated server which validates loosely, and it is not what mining is.
+
+### 1. `hold-key` cannot reach the mouse buttons · mod · the actual cause
+
+Attack is bound to `key.mouse.left`, and `hold-key` is keyboard-only:
+
+```console
+$ clientdevbridge hold-key MOUSE_LEFT --ticks 20
+error: Unknown key 'MOUSE_LEFT'. …
+$ clientdevbridge hold-key 0 --ticks 20
+error: No key binding matches key code 0, so it cannot be held.
+```
+
+Holding attack is *the* mechanism for mining, and holding use is the mechanism for eating, drinking,
+drawing a bow and raising a shield. None of them can be expressed.
+
+`Keys.toKeyCode` answers a bare keyboard `int` and `findMapping` matches against keyboard defaults,
+so the fix is to stop passing an `int` around: resolve to an `InputConstants.Key`, which already
+distinguishes keyboard from mouse, and match bindings on that. Then add the names —
+`MOUSE_LEFT`/`MOUSE_RIGHT`/`MOUSE_MIDDLE`, and `ATTACK`/`USE`/`PICK` for the bindings themselves,
+which is what a caller actually means.
+
+Contained, and entirely inside `mcadapter`. `hold-key ATTACK --ticks 20` then mines, the way a
+player does, one `continueAttack` per tick with the game deciding when the block gives way.
+
+### 2. `break` as a composite · mod and cli
+
+`hold-key ATTACK --ticks 20` still asks the caller to know how long cobblestone takes with a diamond
+pickaxe. That is the same thing `world.use` exists to avoid, and the answer is the same shape:
+
+`world.break` with `{ blockPos, face?, approach?, timeoutTicks? }` — approach and aim through the
+existing `Aim` machinery, `startDestroyBlock`, then `continueDestroyBlock` **once per tick** off the
+tick clock until the block changes or the timeout expires. One per tick, not a loop: it is what a
+player does, it is what makes mining speed observable (a test can assert that the wrong tool is
+slower, or that an unbreakable block times out), and it will not be rejected by a server that
+validates progress.
+
+It reports `{ pos, face, broken, ticks, blockBefore, blockAfter, drops, heldAfter }`. `drops` is the
+point of the exercise — the item entities that appeared — and `ticks` is what says the tool mattered.
+
+CLI: `clientdevbridge break <x> <y> <z> [--face] [--no-approach] [--timeout-ticks]`.
+
+### 3. Walking to a position · cli · smaller
+
+Picking the drop up meant `look --pitch 0` (to stop walking into the ground) and then guessing
+`hold-key W --ticks 20`. It worked first time, but it is dead reckoning: nothing says how far twenty
+ticks goes, and the pitch reset is a trap nothing warns about.
+
+A `walk-to <x> <z> [--timeout-ticks]` that holds forward until the player arrives or gives up would
+remove the guess. Worth doing after the two above, and only if a second task wants it — `teleport`
+covers most cases, and the walk only matters when the movement itself is the thing being tested.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
