@@ -214,3 +214,17 @@ After porting, `./gradlew build` **and** both `scripts/e2e.sh` runs must pass.
 4. **Never break the protocol within a version.**
 5. **Dev-only.** Nothing here should ever be reachable in a player's game: the server is loopback
    only and does not start without `-Dclientdevbridge.enabled=true`.
+
+## Working efficiently
+
+Two habits cost far more than any code change if you get them wrong:
+
+- **Keep one client alive.** Booting takes a minute or two and throws away the world state you
+  built. After a mod-side edit run `clientdevbridge hotswap`, not `restart`; restart only when
+  hotswap says it cannot swap the change.
+- **Do not poll.** Every long-running CLI command blocks until it is finished or its timeout
+  expires, so run it and read the exit code. Never re-check something whose completion will
+  announce itself.
+
+[`docs/ROADMAP.md`](docs/ROADMAP.md) lists the tooling that would make this loop faster, ordered
+by how much time each item would actually save.
