@@ -35,6 +35,10 @@ public class StateWatcher {
     public void onClientTick() {
         Minecraft minecraft = Minecraft.getInstance();
 
+        // Before anything else: a client parked on the onboarding screen is waiting for a human,
+        // and no amount of driving gets past it.
+        Onboarding.dismissIfShowing();
+
         // Toasts fade in and out over several seconds, so anything on screen while one is showing
         // is not reproducible. Clearing them every tick keeps them from ever being drawn.
         if (this.suppressToasts) {
