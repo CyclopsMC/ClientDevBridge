@@ -207,7 +207,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          if-no-files-found: ignore
+          # Every one of these paths is under `.clientdevbridge`, and upload-artifact skips
+          # dot-directories unless told otherwise. Without this it silently uploaded nothing and
+          # reported "No files were found" -- so on exactly the runs worth diagnosing, the game log
+          # that would explain the failure was thrown away.
+          include-hidden-files: true
+          # `warn` rather than `ignore`: a run that captures nothing should say so in the log,
+          # instead of looking the same as a run that had nothing to capture.
+          if-no-files-found: warn
           name: e2e-${{ matrix.loader }}
           path: |
             e2e/*/.clientdevbridge/screenshots/**
