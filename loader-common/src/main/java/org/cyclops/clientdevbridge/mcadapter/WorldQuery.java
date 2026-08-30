@@ -7,6 +7,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import org.cyclops.clientdevbridge.protocol.Json;
+import org.cyclops.clientdevbridge.snapshot.BlockExtractors;
 
 /**
  * Reading blocks out of the world.
@@ -36,6 +37,14 @@ public class WorldQuery {
             JsonObject entityObject = Json.object();
             entityObject.addProperty("type", BuiltInRegistries.BLOCK_ENTITY_TYPE
                     .getKey(blockEntity.getType()).toString());
+            // What distinguishes one instance of this block entity from another, if the mod that
+            // owns it said. Without this a cable with a part on it and a bare one describe
+            // identically, so an agent cannot check its own setup.
+            JsonObject details = Json.object();
+            BlockExtractors.apply(blockEntity, details);
+            if (!details.isEmpty()) {
+                entityObject.add("details", details);
+            }
             if (includeNbt) {
                 // The client only has whatever the server chose to sync, which for most block
                 // entities is the update tag rather than the full save data.

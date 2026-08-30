@@ -117,6 +117,28 @@ clientdevbridge block 0 4 2 --nbt
 For a scene too fiddly to script, commit a world under `clientdevbridge/templates/<name>/` in your
 repository and use `world-reset --template <name>`.
 
+### Interacting with a particular side of a block
+
+`use` is a right-click with whatever is held, and both it and `open-gui` take `--face` (or `--at` for
+a point) to say **where** on the block. Most blocks do not care. Multipart blocks — a cable with a
+part on each side — care about nothing else:
+
+```bash
+clientdevbridge setblock 0 4 2 integrateddynamics:cable
+clientdevbridge command "item replace entity @s weapon.mainhand with integrateddynamics:part_redstone_writer 1"
+clientdevbridge use 0 4 2 --face up            # place the part on the top side
+clientdevbridge command "item replace entity @s weapon.mainhand with minecraft:air"
+clientdevbridge open-gui 0 4 2 --face up       # open that part's GUI, not the one next to it
+clientdevbridge block 0 4 2 --nbt              # what is actually on each side
+```
+
+Read `use`'s `SUCCESS`/`CONSUME`/`PASS` rather than the before/after lines: in creative nothing
+leaves the hand, and a cable gaining a part changes neither its block id nor its state, so a
+successful placement can legitimately report no visible change.
+
+Without `--face` a click lands on the block's centre, which on a cable reaches whichever part
+happens to be in the way — usually none.
+
 ## Golden screenshots
 
 ```bash

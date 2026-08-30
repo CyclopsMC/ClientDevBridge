@@ -2,9 +2,12 @@ package org.cyclops.clientdevbridge.handler;
 
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
+import org.cyclops.clientdevbridge.mcadapter.Aim;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
 import org.cyclops.clientdevbridge.mcadapter.CommandRunner;
+import org.cyclops.clientdevbridge.mcadapter.Interaction;
+import org.cyclops.clientdevbridge.mcadapter.McAdapter;
 import org.cyclops.clientdevbridge.mcadapter.Polling;
 import org.cyclops.clientdevbridge.mcadapter.WorldControl;
 import org.cyclops.clientdevbridge.mcadapter.WorldQuery;
@@ -111,6 +114,68 @@ public class WorldHandler {
             int z = params.getInt("z");
             boolean nbt = params.getBoolean("nbt", false);
             return ClientThread.submit(() -> WorldQuery.block(new BlockPos(x, y, z), nbt));
+        });
+
+        // A right-click that is not about opening a GUI: placing a block or a cable part, using a
+        // tool, wrenching. screen.open is this plus a wait for a screen, and reports failure when
+        // none appears -- which is the wrong contract for every interaction that never opens one.
+        dispatcher.register("world.use", raw -> {
+            Params params = new Params(raw);
+            double[] pos = params.getNumberArray("blockPos", 3);
+            BlockPos blockPos = new BlockPos((int) pos[0], (int) pos[1], (int) pos[2]);
+            Aim aim = Aim.of(blockPos, params.getString("face", null),
+                    params.has("at") ? params.getNumberArray("at", 3) : null);
+            boolean approach = params.getBoolean("approach", true);
+            boolean sneak = params.getBoolean("sneak", false);
+            String hand = params.getEnum("hand", "main", "main", "off");
+
+            // What a use did is only visible as a difference, so both sides of it are recorded.
+            // None of them is reliable on its own: in creative nothing leaves the hand, and adding
+            // a part to a cable changes neither the block id nor its state -- which is why the
+            // interaction's own result is reported alongside them.
+            CompletableFuture<JsonObject> snapshotBefore = ClientThread.submit(() -> {
+                JsonObject snapshot = Json.object();
+                snapshot.addProperty("block", WorldQuery.block(blockPos, false).get("state").getAsString());
+                snapshot.addProperty("held", Interaction.describeHeld(Interaction.hand(hand)));
+                snapshot.addProperty("screen", ClientState.screenClass());
+                // Sneak is read by the server, so it is set before the rotation wait rather than
+                // alongside the click, or the click carries the old state.
+                if (sneak) {
+                    Interaction.setSneaking(true);
+                }
+                return snapshot;
+            });
+
+            java.util.concurrent.atomic.AtomicReference<String> outcome =
+                    new java.util.concurrent.atomic.AtomicReference<>("NONE");
+            return snapshotBefore.thenCompose(before -> ScreenHandler
+                    .aimAndClick(aim, approach,
+                            () -> outcome.set(Interaction.useOn(aim, Interaction.hand(hand)).toString()))
+                    // The result of a use is a server round trip away: a placed part, a changed
+                    // block and an opened screen all arrive later than the click returns.
+                    .thenCompose(ignored -> McAdapter.tickClock().afterTicks(5))
+                    .thenCompose(ignored -> ClientThread.submit(() -> {
+                        if (sneak) {
+                            Interaction.setSneaking(false);
+                        }
+                        JsonObject result = Json.object();
+                        result.add("pos", Json.arrayOfNumbers(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
+                        result.addProperty("face", aim.face().getName());
+                        // What the block did with the click. In creative nothing is consumed and a
+                        // multipart block changes neither its id nor its state when a part is
+                        // added, so this is often the only thing that says the click landed.
+                        result.addProperty("result", outcome.get());
+                        result.addProperty("blockBefore", before.get("block").getAsString());
+                        result.addProperty("blockAfter",
+                                WorldQuery.block(blockPos, false).get("state").getAsString());
+                        result.addProperty("heldBefore", before.get("held").getAsString());
+                        result.addProperty("heldAfter", Interaction.describeHeld(Interaction.hand(hand)));
+                        result.addProperty("screenClass", ClientState.screenClass());
+                        result.addProperty("screenOpened", ClientState.screenClass() != null
+                                && !java.util.Objects.equals(ClientState.screenClass(),
+                                        before.get("screen").isJsonNull() ? null : before.get("screen").getAsString()));
+                        return result;
+                    })));
         });
     }
 

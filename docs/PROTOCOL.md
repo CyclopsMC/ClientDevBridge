@@ -80,7 +80,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `screenshot` | `{ region?: {x,y,w,h,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, ...metrics }` |
 | `screen.snapshot` | `{ includeHidden?, maxDepth? }` | see below |
 | `screen.tooltip` | `{ x, y, space? }` | `{ lines: [string], source, slot?, item?, widget? }` |
-| `screen.open` | `{ blockPos: [x,y,z], approach? }` | `{ screenClass, opened, hint? }` |
+| `screen.open` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z] }` | `{ screenClass, opened, hint? }` |
 | `screen.close` | – | `{ screenClass: null }` |
 | `input.mouseMove` | `{ x, y, space? }` | `{ screenClass, mouse }` |
 | `input.mouseClick` | `{ x, y, button?, space? }` | `{ screenClass, mouse }` |
@@ -99,6 +99,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.list` | – | `{ worlds: [string] }` |
 | `world.command` | `{ command }` | `{ success, value, output: [string] }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
+| `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
 | `wait.ticks` | `{ ticks }` | `{ tick }` |
 | `wait.for` | `{ condition, value?, timeoutMs? }` | `{ met, condition, screenClass, inWorld }` |
 | `window.resize` | `{ width, height, guiScale? }` | metrics |
@@ -112,6 +113,35 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 something ("Unknown block type ..."), so output alone cannot tell a built scene from one that was
 never built. It comes from Brigadier's result callback, which is the only place the outcome is
 available.
+
+### Aiming an interaction
+
+`screen.open` and `world.use` both right-click a block, and both take an optional aim: `face`
+(`down`, `up`, `north`, `south`, `east`, `west`) or `at` (a world-space point on the block). With
+neither, the click lands on the block's centre with the face reported as `up`, which is what every
+release before this did.
+
+Aiming exists because two different mechanisms decide what a click means, and only one of them
+reads the `BlockHitResult`:
+
+- **The hit result.** Vanilla placement (`getClickedFace()`), a chiseled bookshelf's six slots
+  (the hit location), and Integrated Dynamics' own part *placement* all read it. For these, `face`
+  and `at` are what choose the outcome.
+- **A fresh raytrace from the player's eye.** CyclopsCore's `VoxelShapeComponents`, which
+  Integrated Dynamics' cables and everything built on it use, throws the hit result away and casts
+  its own ray from the *server* player's eye along their look angle. For these, the aim matters
+  only because it decides where the bridge stands the player and what it points them at.
+
+Both are handled the same way from the caller's side: name the side you mean. Under the covers an
+aim also moves the player to where that side is visible, and waits for the server to have both the
+new position and the new rotation before clicking -- a click sent in the same tick as a look is
+evaluated against the previous rotation, which for the second kind of block silently picks the
+wrong part.
+
+`world.use` is `screen.open` without the expectation of a screen. Placing a part, using a tool and
+wrenching all leave no screen behind, so `use` reports what changed instead of failing. Trust
+`result` (the interaction's own outcome) over the before/after fields: in creative nothing leaves
+the hand, and a cable gaining a part changes neither its block id nor its state.
 
 `eval` and `wait.for expr` need `-Dclientdevbridge.eval=true` **and** a Groovy engine on the
 classpath. The mod reaches it through `javax.script`, so it is genuinely optional; the CLI's init
@@ -178,3 +208,26 @@ SnapshotExtractors.register(MyFancyWidget.class, (widget, node) -> {
 Every matching extractor in the class hierarchy runs, base classes first, so a specific extractor
 can refine what a general one set. An extractor that throws is reported in the node's
 `extra.extractorError` rather than failing the whole snapshot.
+
+### Describing your own blocks
+
+`world.block` reports the block id, its state properties and its block entity type -- everything a
+vanilla block is. It is not everything a multipart block is: a cable carrying a Redstone Writer and
+a bare one have the same id, the same state and the same block entity type, so a caller cannot tell
+from the description whether the setup it just built worked.
+
+`BlockExtractors` is the counterpart of `SnapshotExtractors` for the world. Register against a
+block entity class and write whatever distinguishes one instance from another; the result appears
+under `blockEntity.details`:
+
+```java
+BlockExtractors.register(BlockEntityMultipartTicking.class, (blockEntity, details) -> {
+    for (Direction side : Direction.values()) {
+        details.addProperty(side.getName(), describePart(blockEntity, side));
+    }
+});
+```
+
+With no extractor registered, `world.block` with `nbt: true` is the fallback: the block entity's
+synced NBT usually carries the same information, if less readably. For an Integrated Dynamics cable
+it contains `partContainer.parts[].__partType` and `__side`.
