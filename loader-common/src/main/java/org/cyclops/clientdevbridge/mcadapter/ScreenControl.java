@@ -16,9 +16,44 @@ import net.minecraft.world.InteractionHand;
  */
 public class ScreenControl {
 
+    /** How many times to press escape before giving up and closing the screen outright. */
+    private static final int MAX_ESCAPES = 5;
+
+    /**
+     * Closes the open screen the way a player does: by pressing escape.
+     *
+     * Setting the screen to null directly looks equivalent and is not. A screen gets to handle
+     * escape, and many do something on the way out that matters:
+     *
+     * <ul>
+     *   <li>A container screen sends the close packet, so the <em>server</em> stops thinking the
+     *       container is open. Closing by fiat leaves it open there.</li>
+     *   <li>Integrated Dynamics' aspect settings screen saves the edited value on escape, and
+     *       nowhere else. Closing by fiat silently discarded whatever had just been typed.</li>
+     *   <li>A sub-screen may go back to its parent rather than close, which is what the player
+     *       would see and so what the caller should get.</li>
+     * </ul>
+     *
+     * Escape is pressed until no screen is left, because a screen that goes back to its parent has
+     * not finished the job. A screen that ignores escape entirely -- there are a few -- is closed
+     * outright rather than looping forever.
+     */
     public static void close() {
-        Minecraft.getInstance().setScreen(null);
+        Minecraft minecraft = Minecraft.getInstance();
+        for (int attempt = 0; attempt < MAX_ESCAPES && minecraft.screen != null; attempt++) {
+            net.minecraft.client.gui.screens.Screen before = minecraft.screen;
+            minecraft.screen.keyPressed(ESCAPE_KEY, -1, 0);
+            if (minecraft.screen == before) {
+                // It did not act on escape, so nothing more will come of pressing it again.
+                break;
+            }
+        }
+        if (minecraft.screen != null) {
+            minecraft.setScreen(null);
+        }
     }
+
+    private static final int ESCAPE_KEY = 256;
 
     public static void openBlock(Aim aim) {
         Interaction.useOn(aim, InteractionHand.MAIN_HAND);
