@@ -6,6 +6,7 @@ import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
+import java.net.UnknownHostException;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -40,12 +41,34 @@ public class BridgeServer {
     }
 
     public void start() throws IOException {
-        this.serverSocket = new ServerSocket(this.port, 16, InetAddress.getLoopbackAddress());
+        // Explicitly the IPv4 loopback, not InetAddress.getLoopbackAddress(). NeoForge's dev run
+        // configuration passes -Djava.net.preferIPv6Addresses=system, which leaves the platform
+        // lookup policy with neither IPV4_FIRST nor IPV6_FIRST set; Inet6AddressImpl then treats
+        // that as "IPv6 first" and getLoopbackAddress() answers ::1 on any machine that has ::1
+        // bound. clientdevbridge-cli connects to 127.0.0.1, so the client became unreachable and
+        // waited out its whole start timeout. Fabric never showed it -- Loom sets no such property
+        // -- and neither does a container without IPv6, where ::1 is not bound and the IPv4
+        // fallback happens to be picked.
+        this.serverSocket = new ServerSocket(this.port, 16, loopbackAddress());
         this.running = true;
         this.acceptThread = new Thread(this::acceptLoop, "ClientDevBridge-accept");
         this.acceptThread.setDaemon(true);
         this.acceptThread.start();
-        ClientDevBridge.LOGGER.info("ClientDevBridge listening on ws://127.0.0.1:{}", getBoundPort());
+        // The address is read back from the socket rather than hardcoded into the message. The
+        // previous version said 127.0.0.1 whatever it had actually bound, which is exactly the
+        // sort of log line that costs hours.
+        ClientDevBridge.LOGGER.info("ClientDevBridge listening on ws://{}:{}",
+                this.serverSocket.getInetAddress().getHostAddress(), getBoundPort());
+    }
+
+    private static InetAddress loopbackAddress() throws IOException {
+        try {
+            return InetAddress.getByName("127.0.0.1");
+        } catch (UnknownHostException e) {
+            // Cannot realistically happen for a literal address, but falling back keeps a strange
+            // host from stopping the bridge outright.
+            return InetAddress.getLoopbackAddress();
+        }
     }
 
     public int getBoundPort() {
