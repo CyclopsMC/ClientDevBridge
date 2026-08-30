@@ -213,9 +213,48 @@ log "Phase 3: aiming at a face places against that face"
 echo "the torch landed north, and the player stood north to put it there"
 "$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:air" >/dev/null
 
+log "Phase 3: shift-clicking a slot moves the stack"
+# A screen decides what a click meant from the real keyboard state, which synthetic input cannot
+# reach, so the operation is named instead. This is the assertion that would have caught the gap:
+# the item has to leave the player inventory and arrive in the chest, in one command.
+"$CLI" --project "$CONSUMER" setblock 8 4 2 minecraft:chest
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:diamond 5" >/dev/null
+"$CLI" --project "$CONSUMER" open-gui 8 4 2 >/dev/null
+# The hotbar slot the held stack is in, as the container numbers it, read rather than assumed.
+HELD_SLOT="$("$CLI" --project "$CONSUMER" --json snapshot \
+  | python3 -c "import json,sys; print(next(s['index'] for s in json.load(sys.stdin)['container']['slots'] if s['item'] == 'minecraft:diamond'))")"
+[[ -n "$HELD_SLOT" ]] || fail "the diamonds are not in the chest screen's slot list"
+"$CLI" --project "$CONSUMER" slot-click "$HELD_SLOT" --type quick_move
+MOVED="$("$CLI" --project "$CONSUMER" --json snapshot \
+  | python3 -c "import json,sys; s=json.load(sys.stdin)['container']['slots']; print(s[$HELD_SLOT]['item'], s[0]['item'])")"
+[[ "$MOVED" == "None minecraft:diamond" ]] \
+  || fail "quick_move left the slots as '$MOVED'; the stack did not move into the chest"
+echo "quick_move moved the stack out of the inventory and into the container"
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+
+log "Phase 2: a teleport reports where the player stays, not where they were dropped"
+# The arrival condition used to be satisfied while the player was still falling, so the reply
+# described a position they held for one tick and every screenshot after it was of somewhere else.
+"$CLI" --project "$CONSUMER" teleport 0 12 0 | tee /tmp/cdb-tp.txt
+LANDED="$(grep -oE 'Player at [-0-9.]+, [-0-9.]+' /tmp/cdb-tp.txt | grep -oE '[-0-9.]+$')"
+"$CLI" --project "$CONSUMER" eval "Math.abs(player.getY() - $LANDED) < 0.5" | grep -q true \
+  || fail "teleport reported y=$LANDED but the player is somewhere else a moment later"
+echo "the reported position is the one the player keeps"
+
 log "Phase 4: eval"
 "$CLI" --project "$CONSUMER" eval "player.getY()" | grep -qE '^[0-9]' || fail "eval returned nothing usable"
 "$CLI" --project "$CONSUMER" wait --expr "mc.level != null" --timeout 3000 || fail "wait --expr failed"
+# dev builds the game objects a script cannot construct for itself, and reads the block properties
+# that otherwise need a game class named. Both are the class loader boundary, so both are worth a check.
+"$CLI" --project "$CONSUMER" eval "dev.blockId(8, 4, 2)" | grep -q "minecraft:chest" \
+  || fail "dev.blockId did not see the chest"
+"$CLI" --project "$CONSUMER" eval "dev.prop(8, 4, 2, 'facing')" | grep -qE 'north|south|east|west' \
+  || fail "dev.prop did not read the chest's facing"
+# Captured rather than piped: the CLI exits non-zero on a script error, and under `pipefail` that
+# fails the pipeline however well grep matched.
+MISSING="$("$CLI" --project "$CONSUMER" eval "dev.prop(8, 4, 2, 'nonesuch')" 2>&1 || true)"
+grep -q "It has:" <<<"$MISSING" \
+  || fail "dev.prop on a missing property should list the ones that exist, but said: $MISSING"
 
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null

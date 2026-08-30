@@ -74,6 +74,30 @@ public class PlayerControl {
                 && Math.abs(player.getZ() - z) < 0.5d;
     }
 
+    /**
+     * Whether the player has arrived <em>and stopped moving</em>.
+     *
+     * {@link #isAt} answers true the moment a teleport lands, which for a target in the air is
+     * while the player is still falling: the reply then describes a position they hold for one more
+     * tick, and every screenshot after it is of somewhere else. This is the condition a caller who
+     * wants a stable camera is actually waiting for.
+     *
+     * Deliberately not folded into {@code isAt}. {@link Interaction#approach} waits on that one, and
+     * {@link Aim#standingPosition} puts the player in mid-air on purpose to look down at a block's
+     * top face -- requiring solid ground there would hang every downward interaction until the
+     * timeout.
+     */
+    public static boolean isSettledAt(double x, double y, double z) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && player.onGround() && isAt(x, y, z);
+    }
+
+    /** Whether the player is falling, for a message that has to explain a position going stale. */
+    public static boolean isFalling() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && !player.onGround();
+    }
+
     public static void selectHotbarSlot(int slot) {
         if (slot < 0 || slot > 8) {
             throw RpcException.invalidParams("Parameter 'slot' must be a hotbar slot 0-8, but was " + slot);

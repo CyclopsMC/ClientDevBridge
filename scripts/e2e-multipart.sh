@@ -164,6 +164,20 @@ log "Each side opens its own part GUI"
 "$CLI" --project "$WORK" screenshot --name multipart-reader --quiet
 "$CLI" --project "$WORK" close-screen >/dev/null
 
+log "One shift-click moves a written variable card out of the reader"
+# The real case that found the shift-click gap: taking a card out of an aspect's output slot used
+# to be a pick-up and a place, with an empty inventory slot to find first.
+"$CLI" --project "$WORK" give integrateddynamics:variable 1 >/dev/null
+"$CLI" --project "$WORK" open-gui 0 4 2 --face up >/dev/null
+CARD_SLOT="$("$CLI" --project "$WORK" --json snapshot \
+  | python3 -c "import json,sys; print(next(s['index'] for s in json.load(sys.stdin)['container']['slots'] if s['item']))")"
+"$CLI" --project "$WORK" slot-click "$CARD_SLOT" --type quick_move
+"$CLI" --project "$WORK" --json snapshot \
+  | python3 -c "import json,sys; s=json.load(sys.stdin)['container']['slots']; sys.exit(0 if s[$CARD_SLOT]['item'] is None else 1)" \
+  || fail "quick_move did not move the card out of slot $CARD_SLOT"
+echo "quick_move works on a modded container screen too"
+"$CLI" --project "$WORK" close-screen >/dev/null
+
 log "A side with no part reports that, rather than claiming the block has no GUI"
 "$CLI" --project "$WORK" open-gui 0 4 2 --face south > /tmp/cdb-empty-side.txt 2>&1 || true
 grep -q "one per side" /tmp/cdb-empty-side.txt || fail "the empty-side hint is missing"

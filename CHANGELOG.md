@@ -6,6 +6,20 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 9 — making the loop faster
 
+- `input.slotClick`: a container click with an explicit `ClickType`, which is the only way to
+  express a shift-click. A screen works out what a click meant from the static
+  `Screen.hasShiftDown()`, which reads the real GLFW keyboard state, and `Screen.mouseClicked` has
+  nowhere to pass a modifier anyway — so the operation is named rather than the input it would be
+  inferred from. It does not run a screen's own `slotClicked` override, which is `protected` and so
+  unreachable; the alternative is a mixin on `hasShiftDown`, and this mod has none.
+- `ScriptHelpers.prop` and `props`: a block's state properties by name, because the direct route
+  names `BlockStateProperties` and so hits the class loader wall `dev` exists to remove. Asking for
+  a property a block does not have lists the ones it does.
+- `player.teleport` waits for the player to *settle*, not merely to arrive. The old condition was
+  satisfied while they were still falling, so the reply described a position held for one tick and
+  every screenshot after it was of somewhere else. `isAt` is unchanged — `Aim` puts the player in
+  mid-air on purpose — and the new `falling` field says when the position in the reply is stale.
+
 - `ScriptHelpers`, bound into `eval` as `dev`: `pos`, `vec`, `block`, `blockId`, `blockEntity`,
   `nbt` and `item`. The game is loaded by a transforming class loader and the script engine is not,
   so a script could not construct a `BlockPos` at all; now it does not have to name the class.
