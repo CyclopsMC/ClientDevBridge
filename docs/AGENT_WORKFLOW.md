@@ -28,6 +28,13 @@ npx @cyclopsmc/clientdevbridge-cli start     # ~2 min cold, headless if there is
 `start` returns only once the client has finished loading and is ready to be driven. It leaves the
 client running in its own process group, so every later command is a fast, separate invocation.
 
+`doctor` is worth running first every time, not just once: it is what tells you which JDK Gradle
+will use, which loader and Minecraft version it detected, and where the ClientDevBridge build it is
+about to inject is coming from. If it reports no build for your Minecraft version, run
+`./gradlew publishToMavenLocal` in a ClientDevBridge checkout of the matching branch — a build in
+the local Maven repository always wins over a released one, which is also how you test a change to
+the bridge itself.
+
 ## Looking at a GUI
 
 ```bash

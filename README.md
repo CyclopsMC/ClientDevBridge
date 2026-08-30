@@ -41,9 +41,16 @@ One branch per Minecraft version line, following the Cyclops branching model:
 | Branch | Minecraft | Artifacts |
 |---|---|---|
 | `master-1.21-lts` | 1.21.1 | `clientdevbridge-1.21.1-{fabric,neoforge}` |
+| `master-26-lts` | 26.1.2 | `clientdevbridge-26.1.2-{fabric,neoforge}` |
+| `master-26` | 26.2 | `clientdevbridge-26.2-{fabric,neoforge}` |
+
+Every branch lists all of them: which branch you happen to be reading is not what decides which
+Minecraft versions exist, and `clientdevbridge-cli` drives all of them from one release.
 
 The **wire protocol is identical on every branch**, so one CLI release drives all of them. Fixes land
-on the oldest affected branch and are upmerged forwards.
+on the oldest affected branch and are upmerged forwards along
+`master-1.21-lts` → `master-26-lts` → `master-26`; each branch's `.upmerge-src-branch` records where
+its changes come from.
 
 ## Building
 

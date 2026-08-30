@@ -127,6 +127,10 @@ public class ClientDevBridge {
         params.addProperty("loader", McAdapter.hooks().getLoaderName());
         params.addProperty("clientDevBridgeVersion", McAdapter.hooks().getModVersion());
         params.addProperty("evalEnabled", config.isEvalEnabled());
+        // Which project this client was launched for, so a CLI that finds an unexpected client on
+        // the port can say whose it is rather than calling every one of them an orphan.
+        params.addProperty("projectDir",
+                config.getProjectDir() == null ? null : config.getProjectDir().toString());
         params.add("mods", Json.arrayOfStrings(McAdapter.hooks().getLoadedModIds()));
         return Dispatcher.notification("hello", params);
     }

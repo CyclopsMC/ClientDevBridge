@@ -58,6 +58,10 @@ public class PlayerHandler {
                     .thenCompose(arrived -> ClientThread.submit(() -> {
                         JsonObject state = playerState();
                         state.addProperty("arrived", arrived);
+                        // What was asked for, alongside where the player ended up. Gravity acts
+                        // between the two, so the same command reports y=5 or y=4 depending on how
+                        // many ticks the round trip took -- which reads as a bug and is not one.
+                        state.add("requested", Json.arrayOfNumbers(x, y, z));
                         return state;
                     }));
         });
