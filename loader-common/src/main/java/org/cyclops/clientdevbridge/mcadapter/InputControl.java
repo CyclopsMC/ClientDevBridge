@@ -6,7 +6,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import com.mojang.blaze3d.platform.Window;
 import org.cyclops.clientdevbridge.protocol.RpcException;
@@ -81,16 +80,16 @@ public class InputControl {
     }
 
     /**
-     * Clicks a container slot with an explicit {@link ClickType} -- the shift-click that a plain
+     * Clicks a container slot with an explicit operation -- the shift-click that a plain
      * click cannot express.
      *
      * A screen decides what a click means before it acts: {@code AbstractContainerScreen.mouseClicked}
-     * works out a {@code ClickType} from the button and the modifiers, and then calls
+     * works out which operation the button and the modifiers meant, and then calls
      * {@code slotClicked}. The modifiers it reads come from the static {@code Screen.hasShiftDown()},
      * which asks GLFW for the real keyboard state -- so no amount of synthetic input reaches it, and
      * {@code mouseClicked} takes no modifiers to pass either. That whole route is closed.
      *
-     * What is open is saying which operation was meant. {@code QUICK_MOVE} <em>is</em> shift-click;
+     * What is open is saying which operation was meant. {@code quick_move} <em>is</em> shift-click;
      * naming it skips a guess rather than faking the input the guess is made from.
      *
      * The one thing this does not do is run a screen's own {@code slotClicked} override, and there
@@ -98,8 +97,7 @@ public class InputControl {
      * Nothing found so far does, and the alternative -- a mixin on {@code hasShiftDown} -- buys that
      * case with the first injection point in a mod that has none.
      */
-    public static void slotClick(int slotId, int button, ClickType type) {
-        Minecraft minecraft = Minecraft.getInstance();
+    public static void slotClick(int slotId, int button, String type) {
         AbstractContainerScreen<?> screen = requireContainerScreen();
         AbstractContainerMenu menu = screen.getMenu();
         if (slotId < 0 || slotId >= menu.slots.size()) {
@@ -115,29 +113,12 @@ public class InputControl {
         Slot slot = menu.slots.get(slotId);
         mouseMove(screen.leftPos + slot.x + 8, screen.topPos + slot.y + 8);
 
-        minecraft.gameMode.handleInventoryMouseClick(menu.containerId, slotId, button, type,
-                ClientState.requirePlayer());
+        // Which enum names the operation, and which method performs it, both moved in Minecraft
+        // 26; SlotInput is where that difference lives.
+        SlotInput.perform(menu.containerId, slotId, button, type);
     }
 
     /**
-     * The protocol's click-type names, which are Minecraft's own enum in lower snake case.
-     *
-     * Kept as a switch rather than {@code ClickType.valueOf}: the enum's constant names are
-     * version-sensitive in principle, and a caller should never see a Java enum name in an error.
-     */
-    public static ClickType clickType(String name) {
-        return switch (name) {
-            case "pickup" -> ClickType.PICKUP;
-            case "quick_move" -> ClickType.QUICK_MOVE;
-            case "swap" -> ClickType.SWAP;
-            case "clone" -> ClickType.CLONE;
-            case "throw" -> ClickType.THROW;
-            case "quick_craft" -> ClickType.QUICK_CRAFT;
-            case "pickup_all" -> ClickType.PICKUP_ALL;
-            default -> throw RpcException.invalidParams("Unknown click type '" + name + "'.");
-        };
-    }
-
     /** The slot whose rectangle contains a GUI-space point, for callers that have a click, not an index. */
     public static int slotAt(double x, double y) {
         AbstractContainerScreen<?> screen = requireContainerScreen();

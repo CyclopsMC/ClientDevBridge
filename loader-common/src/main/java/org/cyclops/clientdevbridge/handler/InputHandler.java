@@ -58,7 +58,7 @@ public class InputHandler {
                 int slot = byPoint
                         ? InputControl.slotAt(point.x(), point.y())
                         : params.getInt("slot");
-                InputControl.slotClick(slot, button, InputControl.clickType(type));
+                InputControl.slotClick(slot, button, type);
                 JsonObject result = afterInput();
                 result.addProperty("slot", slot);
                 result.addProperty("type", type);
