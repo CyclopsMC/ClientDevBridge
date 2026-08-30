@@ -4,6 +4,8 @@ import com.google.gson.JsonObject;
 import net.minecraft.world.phys.Vec3;
 import org.cyclops.clientdevbridge.mcadapter.ClientState;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
+import org.cyclops.clientdevbridge.mcadapter.InputControl;
+import org.cyclops.clientdevbridge.mcadapter.Keys;
 import org.cyclops.clientdevbridge.mcadapter.McAdapter;
 import org.cyclops.clientdevbridge.mcadapter.PlayerControl;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
@@ -20,6 +22,9 @@ public class PlayerHandler {
 
     /** How long to wait for a teleport to round-trip through the integrated server. */
     private static final int ARRIVAL_TIMEOUT_TICKS = 40;
+
+    /** Fifteen seconds of walking, which is a long way and still bounded. */
+    private static final int WALK_TIMEOUT_TICKS = 300;
 
     public static void register(Dispatcher dispatcher) {
         dispatcher.register("player.look", raw -> {
@@ -72,6 +77,36 @@ public class PlayerHandler {
                         state.addProperty("falling", PlayerControl.isFalling());
                         return state;
                     }));
+        });
+
+        // Walking, for when the movement itself is the thing being tested -- stepping onto a drop
+        // to pick it up, say. Doing it by hand meant resetting the pitch (walking forward while
+        // looking down walks into the ground) and then guessing a tick count, which is dead
+        // reckoning: nothing says how far twenty ticks goes.
+        dispatcher.register("player.walkTo", raw -> {
+            Params params = new Params(raw);
+            double x = params.getDouble("x");
+            double z = params.getDouble("z");
+            double within = params.getDouble("within", 0.6d);
+            int timeoutTicks = params.getInt("timeoutTicks", WALK_TIMEOUT_TICKS);
+
+            return ClientThread.run(() -> {
+                PlayerControl.faceHorizontally(x, z);
+                InputControl.setKeyHeld(Keys.toBinding("W"), true);
+            }).thenCompose(ignored -> McAdapter.tickClock().awaitCondition(
+                    () -> {
+                        // Re-aimed every tick: the player drifts, and a heading fixed at the start
+                        // walks past anything it does not hit exactly.
+                        PlayerControl.faceHorizontally(x, z);
+                        return PlayerControl.hasReached(x, z, within);
+                    }, timeoutTicks, null))
+            .thenCompose(arrived -> ClientThread.<Object>submit(() -> {
+                InputControl.setKeyHeld(Keys.toBinding("W"), false);
+                JsonObject state = playerState();
+                state.addProperty("arrived", arrived);
+                state.add("requested", Json.arrayOfNumbers(x, z));
+                return state;
+            }));
         });
 
         dispatcher.register("player.inventory", raw -> ClientThread.submit(PlayerControl::inventory));

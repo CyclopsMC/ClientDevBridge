@@ -436,6 +436,8 @@ integrated server which validates loosely, and it is not what mining is.
 
 ### 1. `hold-key` cannot reach the mouse buttons · mod · the actual cause
 
+> **Shipped.** `Keys.toBinding` answers an `InputConstants.Key`; `ATTACK`, `USE`, `PICK` and the `MOUSE_*` names all hold.
+
 Attack is bound to `key.mouse.left`, and `hold-key` is keyboard-only:
 
 ```console
@@ -459,6 +461,8 @@ player does, one `continueAttack` per tick with the game deciding when the block
 
 ### 2. `break` as a composite · mod and cli
 
+> **Shipped.** `world.break` and `clientdevbridge break`, one tick of progress per tick, reporting `ticks` and `drops`.
+
 `hold-key ATTACK --ticks 20` still asks the caller to know how long cobblestone takes with a diamond
 pickaxe. That is the same thing `world.use` exists to avoid, and the answer is the same shape:
 
@@ -476,6 +480,8 @@ CLI: `clientdevbridge break <x> <y> <z> [--face] [--no-approach] [--timeout-tick
 
 ### 3. Walking to a position · cli · smaller
 
+> **Shipped.** `player.walkTo` and `clientdevbridge walk-to`, re-aimed each tick and leaving the pitch alone.
+
 Picking the drop up meant `look --pitch 0` (to stop walking into the ground) and then guessing
 `hold-key W --ticks 20`. It worked first time, but it is dead reckoning: nothing says how far twenty
 ticks goes, and the pitch reset is a trap nothing warns about.
@@ -483,6 +489,33 @@ ticks goes, and the pitch reset is a trap nothing warns about.
 A `walk-to <x> <z> [--timeout-ticks]` that holds forward until the player arrives or gives up would
 remove the guess. Worth doing after the two above, and only if a second task wants it — `teleport`
 covers most cases, and the walk only matters when the movement itself is the thing being tested.
+
+### What the build added to the plan
+
+The drop was reported as "nothing dropped" on the first run, and then the e2e failed for a different
+reason on the second. Both were the same kind of mistake as before: reading a server's answer
+before it arrived, and assuming a command did more than it says.
+
+**A drop is a server entity and it is thrown.** It is spawned when the server agrees the block
+broke, reaches the client a few ticks later, and lands a block or two from where the block was —
+so `drops` is read ten ticks after the break and carries each item's position. Without the position
+there is nowhere to walk to.
+
+**`eval` had been dead on Minecraft 26 all along.** Running the suite on the 26 worktree by hand --
+which the new mining phases made worth doing -- failed on an `eval` assertion with
+`Unsupported class file major version 69`: the init script pinned Groovy 4.0.22, which cannot read
+Java 25 class files. So `eval` and `wait --expr`, a headline feature, had never worked on either 26
+branch. Nothing caught it because CI's e2e job pins Java 21 and never gets far enough there to try.
+Groovy 5.1.1 fixes it and passes on 1.21 too.
+
+**A CI gap worth closing separately:** the e2e job's `java-version: 21` means the suite has never
+run against a 26 branch at all. That is why a whole feature could be broken there unnoticed, and it
+is a bigger hole than any single bug it has been hiding.
+
+**`give` does not put the item in your hand.** It finds a free slot and leaves the selection alone,
+so the e2e mined cobblestone bare-handed: 202 ticks, and no drop, because cobblestone needs a
+pickaxe. That is the tick count doing exactly the job it was added for — it is now asserted from
+both sides, at least two ticks and at most sixty, so a wrong-tool regression cannot pass.
 
 ---
 
