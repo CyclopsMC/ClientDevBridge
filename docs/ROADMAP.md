@@ -653,6 +653,8 @@ Three things are worth fixing.
 
 ### 1. `dev` cannot reach the registries · mod · the one that actually blocked
 
+> **Shipped.** `dev.blocks`, `dev.items`, `dev.namespaces`, and `clientdevbridge registry <kind> [namespace]`.
+
 "What does this mod register" is the first question you have about an unfamiliar mod, and it cannot
 be asked. Naming `BuiltInRegistries` in a script throws `ExceptionInInitializerError` — the class
 loader wall `dev` exists to remove — and `dev` has no registry accessor. The survey worked around it
@@ -673,6 +675,8 @@ names only, no metadata, and a `--filter`.
 
 ### 2. `broken` is a prediction, `blockAfter` is the truth, and they can disagree · mod
 
+> **Shipped.** `broken` is read after the settle alongside `blockAfter`; the old value survives as `predictedBroken`.
+
 `world.break` computes `broken` from the client's own state the moment the mining loop ends, and
 reads `blockAfter` ten ticks later after the drop settle. During the survey I repeatedly saw replies
 carrying `broken: true` beside `blockAfter: Block{minecraft:stone}` — the reply asserting success
@@ -688,6 +692,8 @@ two fields describing the same fact are sampled ten ticks apart and nothing reco
 itself. Keep `ticks` as the moment the client thought it went, which is still the useful number.
 
 ### 3. A disconnect is reported as "not in a world" · mod
+
+> **Shipped.** `ClientState.disconnectReason()` quotes the screen when there is one.
 
 Destroying a cable out from under its parts made Integrated Dynamics throw server-side, and the
 client was kicked to a `DisconnectedScreen`. Every world command then answered:

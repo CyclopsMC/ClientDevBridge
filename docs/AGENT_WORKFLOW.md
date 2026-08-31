@@ -207,6 +207,33 @@ Aim at nothing first (`look --pitch -90`), or pass --hand main to use the item r
 `--hand main` (or `off`) skips that decision and uses the item outright, which is also the only way
 to reach an off-hand item.
 
+### Finding out what a mod registered
+
+The first question about an unfamiliar mod, and the cheapest:
+
+```bash
+clientdevbridge registry namespaces                              # which mods loaded at all
+clientdevbridge registry blocks evilcraft --filter ore --limit 20
+clientdevbridge registry items integratedtunnels --filter part
+```
+
+`registry namespaces` is also the quickest way to tell a mod is genuinely *loaded* rather than
+merely listed in the run configuration: one that failed to initialise registers nothing. The lists
+are long — one mod has 53 blocks and 90 items — so `--limit` defaults to 100 and says when it
+truncated.
+
+### When a command says there is no world
+
+A server-side exception kicks the client out, and the reason is reported rather than buried:
+
+```
+error: The client was disconnected, so there is no world: Connection Lost. Server closed
+Run 'clientdevbridge world-reset' to start again, but read the reason first -- a disconnect is
+usually a server-side exception in the mod under test.
+```
+
+Read the reason before resetting. `logs --level error` has the stack that goes with it.
+
 ### Reading a mod's own data off an item
 
 `inventory --json` prints a data component through its `toString`, which for most mod types is a

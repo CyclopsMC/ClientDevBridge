@@ -102,7 +102,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.list` | – | `{ worlds: [string] }` |
 | `world.command` | `{ command }` | `{ success, value, output: [string] }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
-| `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, ticks, blockBefore, blockAfter, heldAfter, drops }` |
+| `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, predictedBroken, ticks, blockBefore, blockAfter, heldAfter, drops }` |
 | `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
 | `wait.ticks` | `{ ticks }` | `{ tick }` |
 | `wait.for` | `{ condition, value?, timeoutMs? }` | `{ met, condition, screenClass, inWorld }` |
@@ -157,6 +157,10 @@ then the tool stops mattering and `ticks` stops meaning anything.
 `ticks` is worth reading. A diamond pickaxe takes about nine on cobblestone and bare hands take
 about two hundred and drop nothing — so a large number is usually the answer to "why did my block
 drop nothing", and it is the assertion that says mining happened rather than a block being removed.
+
+`broken` is read after the settle, from the same moment `blockAfter` is, so the two cannot
+contradict each other. `predictedBroken` is what the mining loop itself concluded ten ticks earlier;
+when they differ, the client predicted a break the server did not agree to.
 
 `drops` carries each item's **position** as well as its id and count, because a drop is thrown
 rather than placed: it lands a block or two from where the block was, and that is where the player
@@ -270,6 +274,9 @@ on the game's side instead:
 | `dev.item("minecraft:stone"[, count])` | an `ItemStack` |
 | `dev.prop(x, y, z, "lit")` | one state property's value, as the game's own object |
 | `dev.props(x, y, z)` | every state property, as a name-to-value map |
+| `dev.blocks([namespace])` | every registered block id, or one mod's |
+| `dev.items([namespace])` | every registered item id, or one mod's |
+| `dev.namespaces()` | which mods registered anything — also how to tell a mod really loaded |
 
 The code is a **script**, not a single expression: statements are allowed and the last one is its
 value. So negate the last statement, not the whole thing — `def p = dev.pos(0, 4, 2); !level.getBlockState(p).isAir()`,
