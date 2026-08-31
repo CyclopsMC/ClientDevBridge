@@ -1,5 +1,7 @@
 # ClientDevBridge
 
+[![CI](https://github.com/CyclopsMC/ClientDevBridge/actions/workflows/ci.yml/badge.svg)](https://github.com/CyclopsMC/ClientDevBridge/actions/workflows/ci.yml)
+
 Drive a Minecraft **dev client** from the shell, so a coding agent can launch it, click through it,
 and look at what it rendered — structurally and visually.
 
