@@ -6,6 +6,16 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 9 — making the loop faster
 
+- `ScriptHelpers.blocks`, `items` and `namespaces`: the registries, reachable from a script. Naming
+  `BuiltInRegistries` throws — the class loader wall `dev` exists to remove — so "what does this mod
+  register", the first question about an unfamiliar mod, could not be asked at all.
+- `world.break` reads `broken` after the drop settle, from the same moment as `blockAfter`, so a
+  reply cannot claim a break its own `blockAfter` contradicts. The mining loop's own conclusion
+  survives as `predictedBroken`; a difference means the client predicted a break the server refused.
+- A client kicked to a `DisconnectedScreen` says so, and quotes the reason, instead of answering
+  every command with "Not in a world, run world-reset" — which is true and hides a server-side
+  exception in the mod under test.
+
 - `input.hold` reaches the mouse bindings. Attack is bound to `key.mouse.left` and `Keys` answered a
   keyboard code, so holding attack — which is how every block in the game is mined — could not be
   expressed at all, nor could holding use: eating, drinking, drawing a bow, raising a shield.

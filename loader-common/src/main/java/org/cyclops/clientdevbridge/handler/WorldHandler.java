@@ -168,7 +168,12 @@ public class WorldHandler {
                         JsonObject result = Json.object();
                         result.add("pos", Json.arrayOfNumbers(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
                         result.addProperty("face", aim.face().getName());
-                        result.addProperty("broken", broken);
+                        // Read now, after the settle, and from the same state blockAfter comes
+                        // from. Taken from the mining loop's own result it was a client-side
+                        // prediction sampled ten ticks earlier, which let a reply carry
+                        // broken: true beside a blockAfter still naming the block.
+                        result.addProperty("broken", Mining.isBroken(blockPos));
+                        result.addProperty("predictedBroken", broken);
                         // How long it took, which is the observable difference between the right
                         // tool and the wrong one and the only thing that says mining happened at
                         // all rather than the block being removed.
