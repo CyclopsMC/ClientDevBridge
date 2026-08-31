@@ -81,13 +81,41 @@ public class ClientState {
     }
 
     /**
+     * Why there is no world, when the answer is more interesting than "you never loaded one".
+     *
+     * A server-side exception kicks the client to a {@code DisconnectedScreen} carrying the reason,
+     * and every command afterwards used to answer "Not in a world, run world-reset" -- true, and it
+     * buries the one thing the caller wants: their mod threw. The reason is already on the screen;
+     * this reads it rather than throwing the generic advice over the top of it.
+     *
+     * Through {@code getNarrationMessage}, which is public and carries the title and the reason
+     * together. The detail behind it is a private field.
+     */
+    @Nullable
+    public static String disconnectReason() {
+        Screen screen = screen();
+        return screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen
+                ? screen.getNarrationMessage().getString()
+                : null;
+    }
+
+    /** The message for "there is no world", which depends on how the world came to be missing. */
+    private static String noWorld() {
+        String disconnected = disconnectReason();
+        return disconnected == null
+                ? "Not in a world. Run 'clientdevbridge world-reset' or 'world-load <name>' first."
+                : "The client was disconnected, so there is no world: " + disconnected
+                        + "\nRun 'clientdevbridge world-reset' to start again, but read the reason first"
+                        + " -- a disconnect is usually a server-side exception in the mod under test.";
+    }
+
+    /**
      * @return the player, failing with a clear message when there is no world loaded
      */
     public static LocalPlayer requirePlayer() {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
-            throw RpcException.illegalState(
-                    "Not in a world. Run 'clientdevbridge world-reset' or 'world-load <name>' first.");
+            throw RpcException.illegalState(noWorld());
         }
         return player;
     }
@@ -95,8 +123,7 @@ public class ClientState {
     public static ClientLevel requireLevel() {
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) {
-            throw RpcException.illegalState(
-                    "Not in a world. Run 'clientdevbridge world-reset' or 'world-load <name>' first.");
+            throw RpcException.illegalState(noWorld());
         }
         return level;
     }

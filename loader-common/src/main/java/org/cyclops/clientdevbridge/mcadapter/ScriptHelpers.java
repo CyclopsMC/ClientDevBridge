@@ -130,6 +130,67 @@ public class ScriptHelpers {
         return values;
     }
 
+    /**
+     * Every block id, optionally narrowed to one mod's namespace.
+     *
+     * "What does this mod register" is the first question anyone has about an unfamiliar mod, and
+     * before this it could not be asked: naming {@code BuiltInRegistries} in a script throws, which
+     * is the class loader wall this whole object exists to remove. The answer used to require
+     * unzipping the mod jar and reading its model files, to learn something the running game knows.
+     */
+    public java.util.List<String> blocks(@Nullable String namespace) {
+        return names(BuiltInRegistries.BLOCK.keySet(), namespace);
+    }
+
+    public java.util.List<String> blocks() {
+        return blocks(null);
+    }
+
+    public java.util.List<String> items(@Nullable String namespace) {
+        return names(BuiltInRegistries.ITEM.keySet(), namespace);
+    }
+
+    public java.util.List<String> items() {
+        return items(null);
+    }
+
+    /**
+     * The namespaces that registered a block or an item.
+     *
+     * Also the quickest way to tell that a mod is genuinely loaded rather than merely present in
+     * the run configuration: a mod that failed to initialise registers nothing.
+     */
+    public java.util.List<String> namespaces() {
+        java.util.SortedSet<String> found = new java.util.TreeSet<>();
+        for (String id : blocks(null)) {
+            found.add(id.substring(0, id.indexOf(':')));
+        }
+        for (String id : items(null)) {
+            found.add(id.substring(0, id.indexOf(':')));
+        }
+        return new java.util.ArrayList<>(found);
+    }
+
+    /**
+     * The keys of a registry as strings, sorted.
+     *
+     * The set holds whatever wraps a registry name -- ResourceLocation on 1.21, Identifier on 26 --
+     * and naming neither is what keeps this file identical on every branch, exactly as
+     * {@link #item} does.
+     */
+    private static java.util.List<String> names(java.util.Set<?> keys, @Nullable String namespace) {
+        String prefix = namespace == null ? null : namespace + ":";
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (Object key : keys) {
+            String id = key.toString();
+            if (prefix == null || id.startsWith(prefix)) {
+                found.add(id);
+            }
+        }
+        java.util.Collections.sort(found);
+        return found;
+    }
+
     @Nullable
     private static Property<?> property(BlockState state, String name) {
         for (Property<?> property : state.getProperties()) {

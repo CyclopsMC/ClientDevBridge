@@ -320,6 +320,27 @@ DROP_AT="$(grep -oE 'at [-0-9.]+, [-0-9.]+, [-0-9.]+' /tmp/cdb-break.txt | sed '
   | python3 -c "import json,sys; sys.exit(0 if any(s['item'] == 'minecraft:cobblestone' for s in json.load(sys.stdin)['slots']) else 1)" \
   || fail "the player walked to the drop and did not pick it up"
 echo "mined it in $BROKE_IN ticks, walked to the drop and picked it up"
+# broken and blockAfter describe the same fact and must be read from the same moment: broken used
+# to come from the client's prediction ten ticks before blockAfter, which let a reply say it broke
+# a block its own blockAfter still named.
+"$CLI" --project "$CONSUMER" setblock 0 4 2 minecraft:bedrock >/dev/null
+"$CLI" --project "$CONSUMER" --json break 0 4 2 --timeout-ticks 40 \
+  | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+gone = 'air' in d['blockAfter']
+sys.exit(0 if d['broken'] == gone and not d['broken'] else 1)" \
+  || fail "break disagreed with its own blockAfter on an unbreakable block"
+echo "break agrees with the block it reports"
+
+log "Phase 4: the registry is reachable from a script"
+# "What does this mod register" is the first question about an unfamiliar mod, and naming
+# BuiltInRegistries in a script throws -- the class loader wall dev exists to remove.
+"$CLI" --project "$CONSUMER" registry namespaces | grep -qx "minecraft" \
+  || fail "registry namespaces did not list minecraft"
+"$CLI" --project "$CONSUMER" registry blocks minecraft --filter redstone --limit 5 | grep -q "minecraft:redstone" \
+  || fail "registry blocks did not find the redstone blocks"
+echo "the registries answer for themselves"
 
 log "Phase 3: hold-key reaches the mouse bindings"
 # The cause underneath the above: Keys answered a keyboard code, and attack is key.mouse.left.
