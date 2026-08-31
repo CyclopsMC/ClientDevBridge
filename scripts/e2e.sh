@@ -304,8 +304,12 @@ log "Phase 3: mining a block in survival, and picking up what it drops"
 "$CLI" --project "$CONSUMER" command "gamemode survival" >/dev/null
 "$CLI" --project "$CONSUMER" teleport 0 4 0 >/dev/null
 "$CLI" --project "$CONSUMER" break 0 4 2 | tee /tmp/cdb-break.txt
-grep -q "dropped minecraft:cobblestone" /tmp/cdb-break.txt \
-  || fail "breaking the cobblestone dropped nothing"
+# Either outcome counts, because which one happens is a race the caller does not control: a drop
+# becomes collectable ten ticks after it spawns, which is exactly the settle the mod waits out, so
+# mining within arm's reach ends with the item either on the ground or already in hand. Demanding
+# the first is what failed on CI while passing here.
+grep -qE "(dropped|picked up) minecraft:cobblestone" /tmp/cdb-break.txt \
+  || fail "breaking the cobblestone produced neither a drop nor a pickup"
 # The tick count is what says this was mining rather than the block being removed: a diamond
 # pickaxe takes a handful of ticks on cobblestone, and zero would mean something else happened.
 BROKE_IN="$(grep -oE 'in [0-9]+ ticks' /tmp/cdb-break.txt | grep -oE '[0-9]+')"
@@ -314,12 +318,19 @@ BROKE_IN="$(grep -oE 'in [0-9]+ ticks' /tmp/cdb-break.txt | grep -oE '[0-9]+')"
 # nothing, so a large number here means the tool never reached the player's hand.
 [[ "$BROKE_IN" -le 60 ]] || fail "$BROKE_IN ticks is bare-handed; the pickaxe was not held"
 # The drop is thrown, so it lands a block or two away -- which is why its position is reported.
+# When it was collected during the settle there is no position and nothing to walk to, and the
+# assertion that matters -- the cobblestone reached the player -- is the same either way.
 DROP_AT="$(grep -oE 'at [-0-9.]+, [-0-9.]+, [-0-9.]+' /tmp/cdb-break.txt | sed 's/at //')"
-"$CLI" --project "$CONSUMER" walk-to "$(cut -d, -f1 <<<"$DROP_AT")" "$(cut -d, -f3 <<<"$DROP_AT")"
+if [[ -n "$DROP_AT" ]]; then
+  "$CLI" --project "$CONSUMER" walk-to "$(cut -d, -f1 <<<"$DROP_AT")" "$(cut -d, -f3 <<<"$DROP_AT")"
+  HOW="walked to the drop and picked it up"
+else
+  HOW="picked the drop up where it stood"
+fi
 "$CLI" --project "$CONSUMER" --json inventory \
   | python3 -c "import json,sys; sys.exit(0 if any(s['item'] == 'minecraft:cobblestone' for s in json.load(sys.stdin)['slots']) else 1)" \
-  || fail "the player walked to the drop and did not pick it up"
-echo "mined it in $BROKE_IN ticks, walked to the drop and picked it up"
+  || fail "the cobblestone never reached the player's inventory"
+echo "mined it in $BROKE_IN ticks, $HOW"
 # broken and blockAfter describe the same fact and must be read from the same moment: broken used
 # to come from the client's prediction ten ticks before blockAfter, which let a reply say it broke
 # a block its own blockAfter still named.

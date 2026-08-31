@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.item.ItemStack;
 import org.cyclops.clientdevbridge.protocol.Json;
 
 /**
@@ -63,8 +64,7 @@ public class Mining {
         for (ItemEntity entity : ClientState.requireLevel()
                 .getEntitiesOfClass(ItemEntity.class, around)) {
             com.google.gson.JsonObject drop = Json.object();
-            drop.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM
-                    .getKey(entity.getItem().getItem()).toString());
+            drop.addProperty("item", itemId(entity.getItem()));
             drop.addProperty("count", entity.getItem().getCount());
             // Where it actually landed, which is not where the block was: a drop is thrown with a
             // small random velocity and settles a block or two away. Without this a caller has
@@ -73,6 +73,52 @@ public class Mining {
             drops.add(drop);
         }
         return drops;
+    }
+
+    /**
+     * How many of each item the player is carrying, keyed by item id.
+     *
+     * The companion to {@link #dropsNear}, and it exists because that one only sees what is still
+     * lying on the ground. A vanilla drop can be picked up ten ticks after it spawns, which is
+     * exactly the settle this waits out -- so a player standing near the block collects it on the
+     * very tick the search runs, and a break that dropped something reported dropping nothing. It
+     * only ever went wrong when the timing was tight, which meant it went wrong on CI and not here.
+     */
+    public static java.util.Map<String, Integer> carrying() {
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        var inventory = ClientState.requirePlayer().getInventory();
+        for (int index = 0; index < inventory.getContainerSize(); index++) {
+            ItemStack stack = inventory.getItem(index);
+            if (!stack.isEmpty()) {
+                counts.merge(itemId(stack), stack.getCount(), Integer::sum);
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * What the player has gained since {@code before}, in the same shape as {@link #dropsNear}
+     * minus the position -- a collected item is no longer anywhere to walk to.
+     */
+    public static JsonArray collectedSince(java.util.Map<String, Integer> before) {
+        JsonArray collected = new JsonArray();
+        java.util.Map<String, Integer> now = carrying();
+        java.util.List<String> ids = new java.util.ArrayList<>(now.keySet());
+        java.util.Collections.sort(ids);
+        for (String id : ids) {
+            int gained = now.get(id) - before.getOrDefault(id, 0);
+            if (gained > 0) {
+                com.google.gson.JsonObject entry = Json.object();
+                entry.addProperty("item", id);
+                entry.addProperty("count", gained);
+                collected.add(entry);
+            }
+        }
+        return collected;
+    }
+
+    private static String itemId(ItemStack stack) {
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
 }

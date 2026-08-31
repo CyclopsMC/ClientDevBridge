@@ -144,8 +144,12 @@ public class WorldHandler {
             int timeoutTicks = params.getInt("timeoutTicks", BREAK_TIMEOUT_TICKS);
 
             java.util.concurrent.atomic.AtomicInteger ticks = new java.util.concurrent.atomic.AtomicInteger();
-            CompletableFuture<String> before = ClientThread.submit(
-                    () -> WorldQuery.block(blockPos, false).get("state").getAsString());
+            // What the player is already carrying, so what they gain can be told apart from it.
+            java.util.Map<String, Integer> carriedBefore = new java.util.HashMap<>();
+            CompletableFuture<String> before = ClientThread.submit(() -> {
+                carriedBefore.putAll(Mining.carrying());
+                return WorldQuery.block(blockPos, false).get("state").getAsString();
+            });
 
             return before.thenCompose(blockBefore -> ScreenHandler
                     .aimAndClick(aim, approach, () -> Mining.start(aim))
@@ -185,6 +189,12 @@ public class WorldHandler {
                         // The drop is usually the point, and it is a server-side entity that
                         // appears a moment after the block goes.
                         result.add("drops", Mining.dropsNear(blockPos));
+                        // And what the player already picked up, which the search above cannot see.
+                        // A drop becomes collectable ten ticks after it spawns, which is exactly
+                        // this settle, so standing near the block is enough to have it in hand by
+                        // the time the ground is searched -- and 'drops' alone then said nothing
+                        // dropped for a break that dropped and was collected.
+                        result.add("collected", Mining.collectedSince(carriedBefore));
                         return result;
                     })));
         });
