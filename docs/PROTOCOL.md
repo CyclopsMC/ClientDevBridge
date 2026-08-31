@@ -226,6 +226,12 @@ differ; a caller wanting a stable camera should check `arrived`.
 `wait.for` conditions: `screen` (value = simple or qualified class name), `noScreen`, `inWorld`,
 `outOfWorld`, `chunkLoaded` (value = `[x, y, z]`), `expr` (value = a Groovy expression).
 
+A timed-out `expr` reply also carries `expression`, `evaluations`, `lastValue`, `lastValueType` and
+`hint`. It needs them because `screenClass` and `inWorld` describe nothing an expression asked
+about: a false expression, a throwing one and an unbound name all read identically without them.
+An expression that throws, or that answers something other than a boolean, fails the request
+outright — so reaching a timeout is itself a diagnosis, and the reply says so.
+
 `world.command` reports `success` separately from `output` because a failing command still prints
 something ("Unknown block type ..."), so output alone cannot tell a built scene from one that was
 never built. It comes from Brigadier's result callback, which is the only place the outcome is
