@@ -20,6 +20,11 @@ All notable changes to ClientDevBridge are documented here.
 - `screen.close` reports the screen in focus *after* closing rather than assuming null. A mod
   screen's `onClose` can hand focus back to the screen that opened it.
 - `screenshot` echoes the region it captured, in pixels and in GUI space, when one was asked for.
+- `world.break` reports `collected` beside `drops`. A drop becomes collectable ten ticks after it
+  spawns, which is exactly the settle `world.break` waits out, so mining within arm's reach ends
+  with the item in the player's inventory and nothing on the ground — and `drops` alone then said
+  nothing dropped for a break that dropped and was picked up. It only went wrong when the timing was
+  tight, which meant it went wrong on CI and not locally.
 
 ### Phase 9 — making the loop faster
 
