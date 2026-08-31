@@ -737,6 +737,15 @@ The three were invisible from here because of how this project tests itself: bot
 multiloader, and both run where every dependency already resolves. Neither condition holds for a
 real mod repository.
 
+> **All thirteen are now closed** — eleven fixed, one (`give` closing a container screen) recorded
+> as unreproduced and pinned by an e2e phase, one (`key 1`–`9`) answered differently than planned
+> and documented as such. The three startup bugs and the two aiming bugs were re-checked against the
+> real single-module Integrated Dynamics checkout rather than against a fixture: `doctor` now reports
+> `task :runClient` and resolves that project's compile classpath, `hold 1` reaches the second item
+> `give` handed out, and placing a redstone reader on a cable's `up` face and a writer on its `west`
+> face — the face whose unit-cube centre is air — both land on the side asked for and both report
+> the block entity NBT change that used to read as "no visible change".
+
 ### 1. The bridge injects nothing into a single-module project · cli · **it simply does not work**
 
 `detectGradleTask` answers `":loader-neoforge:runClient"` for a multiloader repo and `"runClient"` —
