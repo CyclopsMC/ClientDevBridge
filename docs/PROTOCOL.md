@@ -277,6 +277,12 @@ never `!(def p = ...; ...)`.
 
 ## `screen.snapshot`
 
+The protocol always reports every container slot, empty ones included. The CLI omits the empty ones
+from `--json` because a container is mostly empty and each one costs about eighty bytes to describe;
+that is presentation, and `--include-empty` turns it off. A client reading the protocol directly
+sees them all.
+
+
 ```jsonc
 {
   "screenClass": "net.minecraft.client.gui.screens.inventory.CraftingScreen",

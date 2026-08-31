@@ -68,8 +68,9 @@ is the contract.
 Two things the outline deliberately leaves out:
 
 - **Empty container slots**, unless they are hovered — a 46-slot screen would otherwise be 45 lines
-  of nothing. Slot geometry is a regular grid from the ones that are shown; or use `--json`, which
-  lists every slot.
+  of nothing. `--json` omits them too, for the same reason and a larger saving, and reports
+  `slotCount`; the slots are a regular grid, so the geometry of the missing ones follows from the
+  ones that are there. `--json --include-empty` lists every slot.
 - **Components that report no rectangle of their own.** Vanilla's recipe book is the common case:
   it appears as one node marked `bounds unknown`, and its own widgets are not reachable. Read a
   screenshot to see it, and click it by coordinate.
@@ -371,6 +372,44 @@ Exit codes are meaningful: `0` success, `1` a protocol-level failure (bad argume
 refused), `2` a session failure (nothing running, port taken, the client is gone).
 
 Read the error text. It is written to say what to do next, not just what went wrong.
+
+## Asking the cheapest question that answers it
+
+Everything here goes into someone's context, and the choices are not close. Measured on a chest
+screen holding one item:
+
+| | bytes | ~tokens |
+| --- | ---: | ---: |
+| `snapshot` | 225 | 56 |
+| `snapshot --json` | 792 | 198 |
+| `snapshot --json --include-empty` | 4,893 | 1,223 |
+| a screenshot **read as an image** (854×480) | — | 546 |
+
+In order, cheapest first:
+
+1. **Ask the world.** `eval "dev.prop(1, 4, 1, \"lit\")"` is twenty bytes and tells you whether the
+   lamp is on. `block`, `inventory` and `look` are the same shape.
+2. **Ask for the outline**, not the JSON. `snapshot` is a quarter the size of `snapshot --json` and
+   is the form you can actually read. Reach for `--json` when a script has to assert on a field.
+3. **Assert on pixels without looking.** `compare` proves a screen did not change and
+   `screenshot --diff` proves it did, each in one line and with an exit code. Between them they
+   answer almost every "did that work" without an image ever entering context.
+4. **Read an image last**, when you genuinely do not know what you are looking for. `--scale 0.5`
+   quarters the pixel count and so the cost; `--region` narrows it further.
+
+Building the Integrated Dynamics clock three times made the point: the first run read about ten
+screenshots, the third read none and cost about 1,500 tokens of bridge output in total.
+
+Two more, free:
+
+- **`--json` omits empty container and inventory slots**, because a container is mostly empty and
+  each empty slot costs about eighty bytes to say so. `slotCount` comes alongside, and the slots are
+  a regular grid, so the geometry of the missing ones is still derivable. `--include-empty` restores
+  them. **Look slots up by their `index` field, never by position in the array** — it is no longer
+  dense.
+- **`batch --quiet`** drops the `$ command` echo. Three commands cost 105 bytes with it and 0
+  without; on a fifty-line scene the echo is a few hundred tokens every rebuild. Keep the echo while
+  you are debugging a batch, drop it once it works.
 
 ## Notes that save time
 

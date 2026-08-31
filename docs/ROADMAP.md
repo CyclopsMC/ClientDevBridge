@@ -552,6 +552,8 @@ anything else on this list.
 
 ### 1. `--json` pretty-prints, and 42% of every payload is whitespace · cli · two lines
 
+> **Shipped.** Compact unless `process.stdout.isTTY`.
+
 `printJson` is `JSON.stringify(value, null, 2)`. On the snapshot above that is **5,017 bytes of
 indentation** — 43% of the payload, for nothing. Compact output is byte-for-byte the same
 information:
@@ -567,6 +569,8 @@ learn, and every `--json` call in every script gets 43% cheaper.
 
 ### 2. Empty container slots are 3.2 kB of the snapshot · cli
 
+> **Shipped.** `--json` omits them and reports `slotCount`; `--include-empty` restores them. Measured on a chest screen holding one item: **9,813 B → 792 B, a 92% cut.**
+
 39 of the 40 slots in that screen were empty, and each one costs about 80 bytes of
 `{"index":n,"item":null,"count":0,"x":..,"y":..,"hovered":false}`. The text outline has always
 omitted them, for exactly this reason; `--json` lists them because completeness was the point of
@@ -581,6 +585,8 @@ actually wanted made unavailable.
 
 ### 3. Screenshots are ~546 tokens each, and mostly avoidable · docs
 
+> **Shipped.** The cost order is in `docs/AGENT_WORKFLOW.md`, with the measured table.
+
 An 854×480 capture read as an image costs about 546 tokens. This run read **none**: `screenshot
 --diff` answered "did the lamp change" in one line, and `dev.prop(1,4,1,"lit")` answered "is it on
 now" in twenty bytes. The first run of this same task read about ten screenshots — call it 5.5k
@@ -593,9 +599,22 @@ count and so the token cost, and `--region` narrows it further.
 
 ### 4. `batch --quiet` is free and nobody knows · docs
 
+> **Shipped.** Documented alongside the cost order.
+
 Three commands cost 105 bytes with the `$ command` echo and 0 with `--quiet`. On a fifty-line scene
 the echo is a few hundred wasted tokens every time. `--quiet` is the right default for a scene you
 have already built and are rebuilding; the echo earns its keep only while a batch is being debugged.
+
+### What the change turned up
+
+The saving was larger than estimated — 92% rather than 65% — because the two cuts compound on a
+container screen more than the modded one they were measured on suggested.
+
+And it broke something. **The slots array was dense by accident**, and two of our own e2e assertions
+indexed it positionally: `slots[54]` for slot 54. That only ever worked because every slot was
+present, and it is exactly the kind of thing a consumer would have written. They key on the `index`
+field now, the docs say to, and `slotCount` is there so nothing about the grid is lost. Worth
+knowing before anyone else's script meets it.
 
 ### Not worth doing
 
