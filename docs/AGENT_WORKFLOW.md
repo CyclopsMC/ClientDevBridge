@@ -153,10 +153,16 @@ straight ahead. It is the same world every time, which is what makes screenshots
 clientdevbridge world-reset
 clientdevbridge command "setblock 0 4 2 minecraft:furnace"
 clientdevbridge give yourmod:wrench 1
+clientdevbridge hold 0
 clientdevbridge teleport 0 5 6 --yaw 180 --pitch 20
 clientdevbridge look --at 0,4,2
 clientdevbridge block 0 4 2 --nbt
 ```
+
+`give` fills the first free hotbar slot and leaves the selection where it was, so after the second
+`give` the item you want is no longer the one in your hand. Everything that places, uses or mines
+acts on the selected slot: name it with `hold <slot>` and the ambiguity goes away. `inventory` marks
+the selected slot with `>`.
 
 For a scene too fiddly to script, commit a world under `clientdevbridge/templates/<name>/` in your
 repository and use `world-reset --template <name>`.
@@ -275,11 +281,16 @@ clientdevbridge block 0 4 2 --nbt              # what is actually on each side
 ```
 
 Read `use`'s `SUCCESS`/`CONSUME`/`PASS` rather than the before/after lines: in creative nothing
-leaves the hand, and a cable gaining a part changes neither its block id nor its state, so a
-successful placement can legitimately report no visible change.
+leaves the hand, and a cable gaining a part changes neither its block id nor its state.
+
+The change that *does* show up is the block entity's NBT, which `use` compares and names — a part
+added, a side wrenched, a variable card written, a tank filled. It says the NBT changed rather than
+printing it; `block <x> <y> <z> --nbt` is how you read it.
 
 Without `--face` a click lands on the block's centre, which on a cable reaches whichever part
-happens to be in the way — usually none.
+happens to be in the way — usually none. With `--face`, the aim point is the centre of the block's
+real shape on that side, so a cable, a slab or a panel is hit where it actually is rather than where
+a full cube's face would be.
 
 **A part whose side faces a solid block cannot be reached from that side.** The part's shape lives
 inside the cable's own block, but the ray to it has to travel through the neighbour, and it stops

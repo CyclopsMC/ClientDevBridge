@@ -77,11 +77,11 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | Method | Params | Result |
 |---|---|---|
 | `status` | – | `{ loaded, inWorld, screenClass, tick, fps, dimension, gameDir, glRenderer, player: { pos, yaw, pitch }, ...metrics }` |
-| `screenshot` | `{ region?: {x,y,w,h,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, ...metrics }` |
+| `screenshot` | `{ region?: {x,y,w,h,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, region?, regionGui?, ...metrics }` |
 | `screen.snapshot` | `{ includeHidden?, maxDepth? }` | see below |
 | `screen.tooltip` | `{ x, y, space? }` | `{ lines: [string], source, slot?, item?, widget? }` |
 | `screen.open` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z] }` | `{ screenClass, opened, hint? }` |
-| `screen.close` | – | `{ screenClass: null }` |
+| `screen.close` | – | `{ screenClass }` — the screen in focus *after* closing, usually null |
 | `input.mouseMove` | `{ x, y, space? }` | `{ screenClass, mouse }` |
 | `input.mouseClick` | `{ x, y, button?, space? }` | `{ screenClass, mouse }` |
 | `input.slotClick` | `{ slot? \| x, y, button?, type? }` | `{ screenClass, mouse, slot, type }` |
@@ -95,7 +95,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `player.walkTo` | `{ x, z, within?, timeoutTicks? }` | `{ pos, yaw, pitch, arrived, requested }` |
 | `player.useItem` | `{ hand?: "auto"\|"main"\|"off", waitScreenTicks? }` | `{ screenClass, mouse, held, aimedAt, hand, screenOpened }` |
 | `player.inventory` | – | `{ slots: [...], selected, carried }` |
-| `player.hotbar` | `{ slot }` | `{ selected }` |
+| `player.hotbar` | `{ slot }` | `{ selected, index, item, count, name, details? }` |
 | `world.reset` | `{ name?, template?, setup? }` | `{ world, template, spawn, seed, platformY, platformRadius }` |
 | `world.load` | `{ name }` | `{ world }` |
 | `world.leave` | – | `{}` |
@@ -103,7 +103,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.command` | `{ command }` | `{ success, value, output: [string] }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
 | `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, predictedBroken, ticks, blockBefore, blockAfter, heldAfter, drops }` |
-| `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
+| `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, blockEntityBefore, blockEntityAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
 | `wait.ticks` | `{ ticks }` | `{ tick }` |
 | `wait.for` | `{ condition, value?, timeoutMs? }` | `{ met, condition, screenClass, inWorld }` |
 | `window.resize` | `{ width, height, guiScale? }` | metrics |
@@ -116,7 +116,12 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 holding it — which is how every block in the game is mined — needs a name that is not a keyboard
 code: `ATTACK`, `USE` and `PICK` name the bindings themselves, and `MOUSE_LEFT`/`MOUSE_RIGHT`/
 `MOUSE_MIDDLE` name the buttons. Holding `USE` is eating, drinking, drawing a bow and raising a
-shield; none of it could be expressed before.
+shield; none of it could be expressed before. `HOTBAR_1`…`HOTBAR_9` name the number row, which a
+bare `"3"` cannot reach because it parses as a key code first.
+
+`player.hotbar` is the direct way to select a slot, and the one to prefer: it sets the selection
+rather than queueing a click for the next tick, and it replies with what is now held. The selection
+reaches the server lazily, right before the next interaction, exactly as it does for a player.
 
 `input.mouseClick` with **no screen open** is an in-world click: button 0 attacks, button 1 uses.
 That branch queues a key binding rather than acting, so its reply is also sent five ticks later —
@@ -249,6 +254,11 @@ wrenching all leave no screen behind, so `use` reports what changed instead of f
 part changes neither its block id nor its state. It is `SUCCESS` when the block handled the click
 and `PASS` when it did not — the finer distinctions Minecraft draws internally differ between
 versions and are deliberately not exposed, since one CLI release drives every branch.
+
+`blockEntityBefore` and `blockEntityAfter` are the block entity's synced NBT as a string, or `""`
+where there is no block entity. They are the field that catches a machine being *configured* — a
+wrench turning a side, a variable card being written, a tank filling — none of which touch the
+block id or the block state, and all of which otherwise read as "nothing happened".
 
 `eval` and `wait.for expr` need `-Dclientdevbridge.eval=true` **and** a Groovy engine on the
 classpath. The mod reaches it through `javax.script`, so it is genuinely optional; the CLI's init

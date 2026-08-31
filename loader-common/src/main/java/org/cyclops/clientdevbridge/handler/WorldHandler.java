@@ -209,6 +209,11 @@ public class WorldHandler {
             CompletableFuture<JsonObject> snapshotBefore = ClientThread.submit(() -> {
                 JsonObject snapshot = Json.object();
                 snapshot.addProperty("block", WorldQuery.block(blockPos, false).get("state").getAsString());
+                // The block entity's synced data as well as the state, because for a multipart
+                // block that is where the change *is*: adding a part to a cable alters neither the
+                // block id nor its state, and in creative nothing leaves the hand either -- so all
+                // three of the old signals said "nothing happened" about a placement that worked.
+                snapshot.addProperty("blockEntity", WorldQuery.blockEntityData(blockPos));
                 snapshot.addProperty("held", Interaction.describeHeld(Interaction.hand(hand)));
                 snapshot.addProperty("screen", ClientState.screenClass());
                 // Sneak is read by the server, so it is set before the rotation wait rather than
@@ -242,6 +247,8 @@ public class WorldHandler {
                         result.addProperty("blockBefore", before.get("block").getAsString());
                         result.addProperty("blockAfter",
                                 WorldQuery.block(blockPos, false).get("state").getAsString());
+                        result.addProperty("blockEntityBefore", before.get("blockEntity").getAsString());
+                        result.addProperty("blockEntityAfter", WorldQuery.blockEntityData(blockPos));
                         result.addProperty("heldBefore", before.get("held").getAsString());
                         result.addProperty("heldAfter", Interaction.describeHeld(Interaction.hand(hand)));
                         result.addProperty("screenClass", ClientState.screenClass());

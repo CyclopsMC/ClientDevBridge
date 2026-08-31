@@ -4,6 +4,23 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 10 — what a cold start found
+
+- `--face` and `--at` aim at the block's real voxel shape rather than at the unit cube. A slab, a
+  cable or a panel occupies part of its block, so the centre of the "top face" of a unit cube is
+  inside empty air above a slab — the click reached the block behind it, or nothing.
+- `world.use` reports `blockEntityBefore` and `blockEntityAfter`, the block entity's synced NBT. A
+  wrench turning a side, a variable card being written, a tank filling: none touch the block id or
+  the block state, so every interaction that configures a machine used to read as no change at all.
+- `player.hotbar` replies with what is now held, so selecting a slot does not have to be followed by
+  an inventory read to find out whether it picked up the item it meant to.
+- `Keys` accepts `HOTBAR_1`…`HOTBAR_9`, and `input.key` resolves through `toBinding` like
+  `input.hold` already did — so the action names work for a tap as well as for a hold. A bare `"3"`
+  cannot reach the number row, because it parses as a raw key code first.
+- `screen.close` reports the screen in focus *after* closing rather than assuming null. A mod
+  screen's `onClose` can hand focus back to the screen that opened it.
+- `screenshot` echoes the region it captured, in pixels and in GUI space, when one was asked for.
+
 ### Phase 9 — making the loop faster
 
 - `ScriptHelpers.blocks`, `items` and `namespaces`: the registries, reachable from a script. Naming

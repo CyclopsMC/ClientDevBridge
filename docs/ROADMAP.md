@@ -799,6 +799,10 @@ known coordinate from each repository the project declares, run only when `docto
 short timeout. Reachability is not usability, and the whole point of `doctor` is to fail in twenty
 seconds instead of six minutes.
 
+> **Shipped.** `doctor` resolves `compileClasspath` on the module carrying the client task — the
+> root of a multiloader layout has no such configuration, which the first cut reported as a failure
+> — and quotes Gradle's own "What went wrong" line. `--no-dependencies` skips it.
+
 ### 4. `--face` aims at the full block face, misses a non-full model, and reports SUCCESS · mod
 
 An Integrated Dynamics cable's core is 6/16–10/16, so the centre of its west face is air. `use 0 4 2
@@ -810,6 +814,9 @@ centre of the unit cube's face. `Aim` already has the position and can ask for
 `state.getShape(level, pos)`; taking the shape's bounds on the requested axis costs nothing and
 makes `--face` mean what a caller assumes it means. This is the interaction the README advertises as
 the multipart headline, and it is the one that misses.
+
+> **Shipped.** `Aim.faceCentre` takes the bounds of `state.getShape(level, pos)` on the requested
+> axis, falling back to the unit cube for a shape that is empty or throws.
 
 ### 5. "No visible change" is wrong whenever the change is in block-entity NBT · mod
 
@@ -823,6 +830,10 @@ should carry that NBT: the README already promises "block, state, properties, bl
 `--json` gives only the block entity's *type*, with the NBT reachable solely through text-mode
 `--nbt`. Two fixes, one cause.
 
+> **Shipped.** `world.use` reports `blockEntityBefore`/`blockEntityAfter` from
+> `WorldQuery.blockEntityData`, and the CLI names the change without printing the NBT. `block
+> --json` now carries the NBT the README promised; `--no-nbt` opts back out.
+
 ### 6. There is no way to select a hotbar slot · mod and cli
 
 `give` drops into the first free slot and leaves the selection alone, so holding a second item type
@@ -834,6 +845,12 @@ to change slots.
 CLI verb — `hold <slot>` — and `key 1`–`9` should reach the hotbar bindings the way `ATTACK` and
 `USE` now reach the mouse. Placing things is the bread and butter of this tool and this is the gap
 in it.
+
+> **Shipped.** `hold <slot>` over `player.hotbar`, which now replies with what is held. `key 1`–`9`
+> turned out to be unfixable as written — a bare digit parses as a raw key code before anything else
+> can look at it, and changing that would break the raw-integer form the protocol documents — so the
+> number row is named instead: `HOTBAR_1`…`HOTBAR_9`, resolved by `Keys.toBinding`. `input.key` now
+> goes through `toBinding` as `input.hold` already did, so every action name works for a tap too.
 
 ### 7. Smaller, in descending order
 
@@ -856,6 +873,22 @@ in it.
   painted by the mod's own renderer rather than registered as a widget, so `set-text` has nothing to
   bind to and the caller falls back to measuring pixels off a screenshot. Not fixable in general;
   worth a line in the docs saying so, and saying that the pixel fallback is expected there.
+
+> **Shipped, with one exception.** `close-screen` prints the screen now in focus; `screenshot
+> --region` echoes the captured rectangle in both spaces; `start --no-gitignore`; the README's
+> `--include-empty` wording now names the two commands it belongs to, and says that `--widget` only
+> reaches what the game models as a widget.
+>
+> `teleport` reproduced immediately and the cause was in the CLI, not in `isSettledAt`: any
+> difference over 0.01 between the requested position and the reply was reported as "fell or was
+> pushed", and `isSettledAt` accepts a landing anywhere within 1.5 blocks vertically — so settling
+> onto the floor from a y that was not already on it, which is the normal case, read as an anomaly.
+> A horizontal displacement is now said separately from a vertical settle.
+>
+> **`give` closing a container screen did not reproduce.** `/give` runs on the integrated server
+> through a collecting command source and touches no screen; an e2e phase now opens a container,
+> gives an item and asserts the screen is still there, on both loaders. Recorded as unreproduced
+> rather than fixed — if it recurs, that phase is where the evidence goes.
 
 ### What the cold start said worked
 

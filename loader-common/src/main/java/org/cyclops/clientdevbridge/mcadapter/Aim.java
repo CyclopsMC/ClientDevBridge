@@ -3,6 +3,8 @@ package org.cyclops.clientdevbridge.mcadapter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.AABB;
+import org.cyclops.clientdevbridge.ClientDevBridge;
 import net.minecraft.world.phys.Vec3;
 import org.cyclops.clientdevbridge.protocol.RpcException;
 
@@ -147,9 +149,46 @@ public class Aim {
                 (float) -Math.toDegrees(Math.atan2(dy, horizontal)) };
     }
 
+    /**
+     * The centre of a face of the block's <em>actual</em> shape, not of the unit cube.
+     *
+     * A cable's core runs 6/16 to 10/16, so the centre of the unit cube's west face is empty air: a
+     * ray aimed there passes straight through, the interaction lands on nothing, and -- because the
+     * click itself was delivered -- it is reported as a success that did nothing. Reading the real
+     * shape costs one lookup and makes {@code --face} mean what a caller assumes it means.
+     *
+     * Falls back to the unit cube when a block has no shape at all, which is what an empty shape
+     * used to be treated as anyway.
+     */
     private static Vec3 faceCentre(BlockPos pos, Direction face) {
-        Vec3 centre = Vec3.atCenterOf(pos);
-        return centre.add(face.getStepX() * 0.5d, face.getStepY() * 0.5d, face.getStepZ() * 0.5d);
+        AABB bounds = shapeOf(pos);
+        // The two axes across the face take the shape's middle; the axis along it takes the face.
+        double x = face.getStepX() == 0
+                ? pos.getX() + (bounds.minX + bounds.maxX) / 2
+                : pos.getX() + (face.getStepX() > 0 ? bounds.maxX : bounds.minX);
+        double y = face.getStepY() == 0
+                ? pos.getY() + (bounds.minY + bounds.maxY) / 2
+                : pos.getY() + (face.getStepY() > 0 ? bounds.maxY : bounds.minY);
+        double z = face.getStepZ() == 0
+                ? pos.getZ() + (bounds.minZ + bounds.maxZ) / 2
+                : pos.getZ() + (face.getStepZ() > 0 ? bounds.maxZ : bounds.minZ);
+        return new Vec3(x, y, z);
+    }
+
+    /** The block's collision-independent outline, in block-local coordinates. */
+    private static AABB shapeOf(BlockPos pos) {
+        try {
+            net.minecraft.world.phys.shapes.VoxelShape shape = ClientState.requireLevel()
+                    .getBlockState(pos).getShape(ClientState.requireLevel(), pos);
+            if (!shape.isEmpty()) {
+                return shape.bounds();
+            }
+        } catch (Throwable e) {
+            // A shape that cannot be asked for is not worth failing an interaction over; the unit
+            // cube is what this always used to assume.
+            ClientDevBridge.LOGGER.debug("Could not read the shape at {}, aiming at the full cube", pos, e);
+        }
+        return new AABB(0, 0, 0, 1, 1, 1);
     }
 
     /** The face whose plane the point lies closest to, for a caller that gave a point but no face. */
