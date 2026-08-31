@@ -915,6 +915,127 @@ happen — the worst kind of wrong. Then 6, then the rest.
 
 ---
 
+## The second cold start, on 0.3.0
+
+The same setup as the first: an agent with no knowledge of this project, the real Integrated
+Dynamics repository, the CLI's URL, and the redstone-clock task. This time against the published
+0.3.0 and the released mod, with no local build shadowing either.
+
+**80 minutes became 13.** Getting to a working client went from 67 minutes to 4.5, and none of that
+was troubleshooting — it was `npm install`, `doctor`, and waiting 55 seconds for `start`. The three
+startup bugs the first run found are gone, and nothing replaced them.
+
+So the remaining findings are all in the second half, and they share one theme: **the `eval` path
+tells you nothing about what it saw.** Everything else is documentation that has drifted from the
+tool.
+
+### 1. `wait --expr` cannot say why it timed out · mod and cli · the expensive one
+
+```
+$ clientdevbridge wait --expr "dev.prop(1,5,2,'lit') == 'true'" --timeout 15000
+Timed out after 15000 ms waiting for expr (screen is none, in world: true).
+```
+
+`wait.for` reports `screenClass` and `inWorld` on every timeout, which for `expr` describe nothing
+the caller asked about. The expression could be false, throwing, or referencing an unbound name and
+the message is identical. The README promises the opposite — *"Every wait reports the state it
+actually observed when it times out"* — and for this one condition it does not.
+
+It was cracked only by running the complementary expression, noticing that *both* timed out when one
+had to be true, and probing the type by hand. Six minutes for something a one-line diagnostic
+answers instantly.
+
+**The plan.** `WaitHandler`'s `expr` predicate should record the last value it evaluated and the
+last exception it caught, and the timeout reply should carry them: `lastValue`, `lastValueType`,
+`lastError`. The CLI prints `last value: false (Boolean)` or `last error: MissingMethodException:
+...`. `evaluateAsBoolean` currently discards both.
+
+### 2. `eval` prints a Boolean and a String identically · mod · the cause of 1
+
+`dev.prop(1,5,2,'lit')` returns a `java.lang.Boolean` and `eval` prints it as a bare `false` — which
+reads exactly like the string `"false"`, which is why the expression above compared against
+`'true'`. The README lists `dev.pos`, `dev.blockEntity`, `dev.nbt`, `dev.item` and `dev.prop` with no
+return types anywhere.
+
+**The plan.** Print the type alongside any non-String scalar: `false (Boolean)`. Document each
+`dev.*` helper's return type. These two and item 1 are one story and should ship together.
+
+### 3. The script language is never named · docs
+
+The README says "the script engine" and its examples (`mc.level != null`, `player.getY()`) are valid
+in both Groovy and JavaScript. **"Groovy" does not appear in the CLI README at all** — only in
+`PROTOCOL.md`, which a caller reading the README has no reason to open. Assuming JavaScript produced
+
+```
+$ clientdevbridge eval "typeof dev.prop(1,5,2,'lit')"
+Possible solutions: grep(), tap(groovy.lang.Closure)
+```
+
+which does not say "this is Groovy" either.
+
+**The plan.** Name Groovy in the README's `eval` section, and prefix evaluation errors with the
+engine so an unfamiliar message identifies itself.
+
+### 4. The README's `set-text` example cannot work on the screen it evokes · docs
+
+`set-text "Pulse length" 77 --commit enter` appears twice in the README, and "Pulse Length" is
+exactly the Integrated Dynamics aspect-settings field the task needed. It fails, correctly: on that
+screen the phrase is the window *title* and the text box carries no label. The README explains the
+general rule elsewhere — a field a mod paints itself is not a widget — but the headline example uses
+a real label from a real mod screen that cannot be matched, which sends a reader hunting a bug that
+is not there.
+
+**The plan.** Use an example that resolves, and point the mod-drawn case at the pixel fallback right
+there. The error message itself was praised and should not change.
+
+### 5. `tooltip` leaks section signs · mod
+
+```
+$ clientdevbridge tooltip --at 260,40
+Variable Card
+§eAspect: §rRedstone Clock
+§e§oPart ID: §r§o0
+```
+
+`TooltipCapture` calls `Component.getString()`, which is plain text — but Cyclops mods put literal
+`§` codes in their translation strings, so they survive. Noise in output meant for a program.
+
+**The plan.** Strip `§` and the character after it. Keep the raw form behind a flag if anyone wants
+it, which nobody has asked for.
+
+### 6. `--no-gitignore` is undocumented · docs · ours, from last round
+
+`start` announces `Added .clientdevbridge/ to .../.gitignore` and leaves the consumer's repository
+dirty. The flag to prevent it shipped in 0.3.0 — and **the word "gitignore" does not appear in the
+README**, including in the Session state section that documents what `.clientdevbridge/` holds. The
+fix from the last cold start is invisible to the next one, which is its own lesson.
+
+**The plan.** Document the behaviour and the flag where session state is described.
+
+### 7. Piping masks the exit code · docs
+
+`clientdevbridge ... | head` reports `head`'s status, not the CLI's. Not a defect — but the README
+leans on exit codes as the agent-facing contract while every example pipes, so the contract it
+documents is broken by the usage it models. One sentence about `PIPESTATUS`.
+
+### What the cold start said worked
+
+`doctor` — "excellent", 25 checks in 13 seconds, trusted completely and never debugged. `start` —
+55 seconds and a mod list that confirms the mod under test initialised. `inspect-gui` — "the
+standout command", outline and image together. `--face` on multipart blocks — "the hard part of
+driving Integrated Dynamics and it was a non-issue", first try. `block --json` with block-entity NBT
+verified cable connectivity and part attachment without a screenshot. `snapshot --json
+--include-empty` identified container slots by position. `screenshot --diff` turned the deliverable
+into an assertion. `batch`, `give`, `hold`, `teleport`, `world-reset`, `close-screen` — no surprises.
+
+### The order
+
+1 and 2 together, then 3: that is the whole `eval` story, and it is the only remaining thing that
+costs an agent real time. Then the documentation drift — 4, 6, 7 — which is cheap and which item 6
+shows we are bad at remembering. Then 5.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
