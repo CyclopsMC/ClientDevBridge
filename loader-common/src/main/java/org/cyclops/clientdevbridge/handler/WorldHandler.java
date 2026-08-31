@@ -130,6 +130,34 @@ public class WorldHandler {
             return ClientThread.submit(() -> WorldQuery.block(new BlockPos(x, y, z), nbt));
         });
 
+        // The counterpart of world.block for things that are not blocks. Abilities, attributes and
+        // any capability data live on the *server* entity -- the client copy does not have them --
+        // so this goes through the same command source /data get does rather than reading the
+        // client's own entity, which would answer confidently and wrongly.
+        //
+        // 'path' is not a nicety: a player's full NBT is tens of kilobytes, and almost every
+        // question about one is about a single branch of it.
+        dispatcher.register("world.entity", raw -> {
+            Params params = new Params(raw);
+            String selector = params.getString("selector", "@s");
+            String path = params.getString("path", null);
+            return ClientThread.submit(() -> {
+                CommandRunner.Result outcome = CommandRunner.execute(
+                        "data get entity " + selector + (path == null ? "" : " " + path));
+                JsonObject result = Json.object();
+                result.addProperty("selector", selector);
+                result.addProperty("path", path);
+                result.addProperty("success", outcome.success());
+                String joined = String.join("\n", outcome.output());
+                // The command prefixes its answer with a sentence naming the entity. Useful to a
+                // player reading chat, noise to anything parsing it, so both are reported: the
+                // whole line, and the value on its own.
+                result.addProperty("output", joined);
+                result.addProperty("value", valueOf(joined));
+                return result;
+            });
+        });
+
         // Breaking a block, which a single click cannot do: mining is a held action whose length
         // depends on the block, the tool and whether the tool is even the right one. Holding attack
         // for a fixed number of ticks would put that knowledge back on the caller, which is the
@@ -268,6 +296,27 @@ public class WorldHandler {
                         return result;
                     })));
         });
+    }
+
+    /**
+     * The data out of {@code /data get}'s sentence, which reads
+     * "X has the following entity data: {...}" -- or, for a path resolving to a number, ends in a
+     * bare value. Everything from the first brace, bracket or quote onwards, and failing that the
+     * last word.
+     */
+    private static String valueOf(String output) {
+        int start = output.length();
+        for (char opening : new char[] { '{', '[', '"' }) {
+            int index = output.indexOf(opening);
+            if (index >= 0 && index < start) {
+                start = index;
+            }
+        }
+        if (start < output.length()) {
+            return output.substring(start);
+        }
+        int lastSpace = output.lastIndexOf(' ');
+        return lastSpace < 0 ? output : output.substring(lastSpace + 1);
     }
 
     private static Path templatesRoot(Path projectDir) {

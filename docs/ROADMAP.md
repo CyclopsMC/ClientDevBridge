@@ -1036,6 +1036,124 @@ shows we are bad at remembering. Then 5.
 
 ---
 
+## What Everlasting Abilities found
+
+A third agent, driving a different mod. It succeeded, and its verdict on the parts this project has
+already worked on was that they were fine: `doctor` accurate, `open-gui` / `snapshot` /
+`click --widget` handled a custom non-slot GUI, and the widget paths were exactly what it needed
+because the ability rows themselves are not widgets.
+
+Five things cost it time. One of them is the biggest single gap left in the tool.
+
+### 1. `start` calls a cold NeoGradle build a failure · cli · the big one
+
+On a machine with no `neoform` cache, the first boot is **~17 minutes** — `neoFormRecompile` alone
+compiles 5,364 sources. The default timeout is 300 seconds, so `start` gave up while the build was
+healthy and still progressing. The detached Gradle process carried on and the client came up three
+minutes later.
+
+Two separate defects behind one symptom:
+
+- **The message describes a death.** "The client did not answer on port 25599 within 300s" and
+  "Increase --timeout" are what you say when something stopped. Here nothing had stopped, and the
+  right advice was to wait, or to poll `status`.
+- **Nothing distinguishes "still building" from "dead".** The launcher already reads `gradle.log`
+  for `diagnoseSilence`; it does not ask whether the Gradle process is alive or whether the log has
+  advanced since the last poll, which is the whole difference between the two.
+
+**The plan.** On timeout, check whether the child is alive and whether `gradle.log` grew during the
+wait. If both, this is not a failure: say the build is still running, name the task it is on
+(`neoFormRecompile` and friends are in the log), and tell the caller to poll `clientdevbridge
+status` — with an exit code that says "not ready yet" rather than "it broke". Separately, raise the
+default timeout when no `neoform`/`loom` cache exists for the project's Minecraft version, because
+300s is not a considered value for a first run — it is a value chosen on a warm machine.
+
+> **Not a defect: the exit code.** The report says `start` "exits 0 despite printing `error:`".
+> It does not — measured, unpiped, it exits **2**, as documented. This is the pipe trap: `$?` after
+> `cmd | head` is `head`'s status. The third agent in a row has hit it, which says the warning added
+> for the last round does not go far enough; see item 5.
+
+### 2. `doctor` marks the best predictor of a 15-minute boot as `ok` · cli
+
+```
+ok    dependencies    still resolving after 4 minutes; not waited out
+```
+
+That line means the cache is cold, and a cold cache means the next `start` takes 10–20 minutes. It
+is the single most useful thing `doctor` can tell a first-time caller, and it is filed under `ok`
+beside everything that is genuinely fine.
+
+**The plan.** Make it a `warn` that says what it implies: first launch will take 10–20 minutes, so
+pass a longer `--timeout`. This is ours from two rounds ago — the check was added, the meaning of
+its most important outcome was not thought through.
+
+### 3. `inventory --json` prints a mod's components as a class name and a hash · mod
+
+```
+everlastingabilities:ability_store=>org.cyclops.everlastingabilities.api.capability.DefaultAbilityStore@a3ae299a
+```
+
+`PlayerControl.describeStack` calls `stack.getComponents().toString()`, and for a mod's own
+component type that is `Object.toString`. The agent fell back to `command "data get entity @p"` and
+grepped NBT. The code comment there already concedes the problem and offers `ItemExtractors` as the
+way out — but that requires the mod to have registered an extractor, which no third-party mod has.
+
+This matters more than its size suggests: **asserting on mod state is most of what a mod agent
+wants to do**, and this is the command for it.
+
+**The plan.** Serialize through the registered codec, the way `/data get` does:
+`ItemStack.CODEC.encodeStart(ops, stack)` with a registry-aware `NbtOps`. `ItemStack.CODEC` exists
+on 1.21 and on both 26 branches — checked — so this is one call in one shared file, not a per-branch
+adapter. Keep `details` for the extractors that do exist; they are a summary, and this is the raw
+truth underneath.
+
+### 4. The mouse position is baked into every screenshot · mod and cli
+
+The Everlasting Abilities GUI draws a player model and an item that rotate toward the cursor, so a
+capture after a `click` records wherever the click left the pointer, plus its hover highlight. The
+agent had to `mouse-move 213,120` before each capture to make a before/after pair comparable.
+
+The determinism paragraph pins clouds, particles, vsync, view bobbing, the window size, the world
+seed and the time of day. It does not pin the cursor, which is the one piece of state every input
+command moves.
+
+**The plan.** `screenshot --mouse x,y` (and the same on `compare`) parking the pointer before the
+capture, plus a line in the determinism paragraph saying the cursor is part of the frame. A
+`--mouse` on the capture is better than remembering a separate `mouse-move`, because the golden and
+the comparison then carry the same pin.
+
+### 5. `AGENTS.md` states an invariant the tool no longer honours · docs
+
+> "The CLI never edits the consumer's repository. It generates `.clientdevbridge/init.gradle` and
+> passes it to `./gradlew runClient`; anything else is a bug."
+
+`start` appends to the project's `.gitignore`. The behaviour is sensible and opt-out; the sentence
+is simply now false, and an agent reading it has to stop and explain a dirty `git status` against a
+documented promise that it cannot happen.
+
+**The plan.** Amend the invariant to say what is actually true: the CLI writes `.clientdevbridge/`
+and, unless `--no-gitignore`, one block in `.gitignore` — and nothing else, ever. Also fold the
+pipe-and-exit-code warning from item 1 into `AGENTS.md`, not only the README: three agents in a row
+have now misread an exit code through a pipe, and the file agents actually read is that one.
+
+### 6. Minor: there is no way to look at an entity · mod and cli
+
+`block --nbt` exists and is the reason mod state on a block is easy to assert on. There is no
+counterpart for the player or any other entity, so abilities, attributes and capability data need
+`command "data get entity @p"` and a grep.
+
+**The plan.** `player --nbt`, and `entity <selector> --nbt`, symmetric with `block --nbt`. Item 3
+overlaps: an inventory that serialises properly removes most of the need, so do 3 first and see what
+is left.
+
+### The order
+
+1 and 2 together — they are the same story, which is that a cold machine is treated as a broken one,
+and they are what stands between this tool and a first-run experience that works. Then 3, which is
+the one that limits what an agent can assert on. Then 4 and 5, then 6 if it is still wanted.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and

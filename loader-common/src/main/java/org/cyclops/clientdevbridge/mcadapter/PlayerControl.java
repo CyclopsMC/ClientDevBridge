@@ -8,6 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import org.cyclops.clientdevbridge.protocol.Json;
 import org.cyclops.clientdevbridge.protocol.RpcException;
+import org.cyclops.clientdevbridge.ClientDevBridge;
 
 /**
  * Moving and inspecting the player.
@@ -166,18 +167,42 @@ public class PlayerControl {
         object.addProperty("count", stack.getCount());
         object.addProperty("name", stack.getHoverName().getString());
         if (!stack.getComponents().isEmpty()) {
-            object.addProperty("components", stack.getComponents().toString());
+            object.addProperty("components", componentsOf(stack));
         }
-        // Whatever the mod that owns the item says distinguishes one stack from another. The
-        // components string above is a toString, which for a mod's own component type is a class
-        // name and an identity hash -- so a container item full and empty describe identically
-        // without this.
+        // A summary on top of the raw components above: whatever the mod that owns the item says
+        // distinguishes one stack from another, for the mods that register an extractor.
         JsonObject details = Json.object();
         org.cyclops.clientdevbridge.snapshot.ItemExtractors.apply(stack, details);
         if (!details.isEmpty()) {
             object.add("details", details);
         }
         return object;
+    }
+
+    /**
+     * A stack's components as NBT, serialized the way {@code /data get} serializes them.
+     *
+     * {@code DataComponentMap.toString()} is {@code Object.toString} for anything without its own,
+     * which every mod's component type is -- so a custom component read as
+     * {@code somemod:ability_store=>com.example.DefaultAbilityStore@a3ae299a}, which carries no
+     * information at all. Going through {@code ItemStack.CODEC} runs each component's registered
+     * codec instead, which is what a mod already had to write for the component to be saved.
+     *
+     * Falls back to the old {@code toString} rather than failing the whole request: a component
+     * that refuses to encode should cost its own value, not the inventory listing around it.
+     */
+    private static String componentsOf(ItemStack stack) {
+        try {
+            var registries = ClientState.requireLevel().registryAccess();
+            var ops = registries.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+            var encoded = ItemStack.CODEC.encodeStart(ops, stack).result();
+            if (encoded.isPresent()) {
+                return encoded.get().toString();
+            }
+        } catch (Throwable e) {
+            ClientDevBridge.LOGGER.debug("Could not encode the components of {}", stack, e);
+        }
+        return stack.getComponents().toString();
     }
 
     public static Minecraft minecraft() {

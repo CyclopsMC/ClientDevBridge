@@ -453,6 +453,33 @@ echo "give leaves an open container screen alone"
 "$CLI" --project "$CONSUMER" screenshot --region 10,10,40,20 --name region-echo | grep -q "cropped to gui 10,10,40,20" \
   || fail "screenshot --region did not echo the gui rectangle it captured"
 
+log "Phase 5b: entity NBT, component serialisation and the cursor pin"
+# block --nbt for things that are not blocks. The data is server-side, so a client-only read would
+# answer confidently and wrongly.
+"$CLI" --project "$CONSUMER" entity @s Pos | grep -qE '^\[' \
+  || fail "entity @s Pos should answer the player's position list"
+BADPATH="$("$CLI" --project "$CONSUMER" entity @s nosuchpath 2>&1 || true)"
+grep -qiE "no|found|error" <<<"$BADPATH" \
+  || fail "entity with a bad path should say so, but said: $BADPATH"
+
+# A mod's own data component used to render as a class name and an identity hash. Vanilla components
+# go through the same path, so a vanilla one with structure proves the codec is being used: a
+# toString of the map would not contain the component's own field names.
+"$CLI" --project "$CONSUMER" command "clear" >/dev/null
+"$CLI" --project "$CONSUMER" give 'minecraft:written_book[minecraft:written_book_content={title:"T",author:"A",pages:[{raw:"hello"}]}]' 1 >/dev/null
+"$CLI" --project "$CONSUMER" --json inventory \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); c=''.join(str(s.get('components','')) for s in d['slots']); sys.exit(0 if 'hello' in c else 1)" \
+  || fail "components should serialise through their codec, so the book's own text is visible"
+echo "components carry their real contents"
+
+# The cursor changes what is rendered, so it has to be pinnable at capture time.
+"$CLI" --project "$CONSUMER" screenshot --mouse 213,120 --name cursor-pinned >/dev/null \
+  || fail "screenshot --mouse should park the cursor and capture"
+OFFSCREEN="$("$CLI" --project "$CONSUMER" screenshot --mouse 9999,9999 2>&1 || true)"
+grep -qi "outside\|off.screen\|must be" <<<"$OFFSCREEN" \
+  || fail "screenshot --mouse off screen should be refused, but said: $OFFSCREEN"
+echo "the cursor can be pinned before a capture"
+
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null
 

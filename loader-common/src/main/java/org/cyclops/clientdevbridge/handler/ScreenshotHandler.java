@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import org.cyclops.clientdevbridge.mcadapter.ClientThread;
 import org.cyclops.clientdevbridge.mcadapter.FrameCapture;
 import org.cyclops.clientdevbridge.mcadapter.Geometry;
+import org.cyclops.clientdevbridge.mcadapter.InputControl;
 import org.cyclops.clientdevbridge.mcadapter.McAdapter;
 import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import org.cyclops.clientdevbridge.protocol.Json;
@@ -36,6 +37,12 @@ public class ScreenshotHandler {
             }
             JsonObject regionObject = params.getObject("region");
             Double scale = params.has("scale") ? params.getDouble("scale") : null;
+            // Where to park the pointer before capturing. The cursor is part of the frame -- a
+            // hover highlight, and in some GUIs a player model or an item that rotates to follow
+            // it -- so two captures taken after different clicks differ for reasons that have
+            // nothing to do with what was being tested. Nothing else pins it: every other
+            // determinism setting is in options.txt, and this one is live state.
+            JsonObject mouseObject = params.getObject("mouse");
 
             CompletableFuture<?> ready = afterTicks > 0
                     ? McAdapter.tickClock().afterTicks(afterTicks)
@@ -44,8 +51,10 @@ public class ScreenshotHandler {
             return ready
                     // The metrics are read on the client thread before capturing, so they describe
                     // the same frame the caller is about to receive.
-                    .thenCompose(ignored -> ClientThread.submit(() -> new Request(
-                            resolveRegion(regionObject), scale, Geometry.metrics())))
+                    .thenCompose(ignored -> ClientThread.submit(() -> {
+                        moveMouse(mouseObject);
+                        return new Request(resolveRegion(regionObject), scale, Geometry.metrics());
+                    }))
                     .thenCompose(request -> FrameCapture.capture(request.region(), request.scale())
                             .thenApply(png -> render(png, request.metrics(), request.region())));
         });
@@ -71,6 +80,25 @@ public class ScreenshotHandler {
                     region.width() / guiScale, region.height() / guiScale));
         }
         return result;
+    }
+
+    /**
+     * Parks the pointer, when the caller asked for it to be somewhere known.
+     *
+     * Deliberately part of the capture rather than a separate command: a golden image and the
+     * capture compared against it then carry the same pin, instead of relying on whoever recorded
+     * the golden having remembered to move the mouse first.
+     */
+    private static void moveMouse(@Nullable JsonObject mouseObject) {
+        if (mouseObject == null) {
+            return;
+        }
+        Params mouse = new Params(mouseObject);
+        String space = Geometry.requireSpace(mouse.getString("space", Geometry.SPACE_GUI));
+        double x = mouse.getDouble("x");
+        double y = mouse.getDouble("y");
+        Geometry.requireOnScreen(x, y, space);
+        InputControl.mouseMove(Geometry.toGui(x, space), Geometry.toGui(y, space));
     }
 
     @Nullable

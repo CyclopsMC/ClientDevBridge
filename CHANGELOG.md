@@ -4,6 +4,18 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 12 — what Everlasting Abilities found
+
+- Item components are serialized through their registered codecs, the way `/data get` does. A mod's
+  own data component used to render as `Object.toString` — a class name and an identity hash — which
+  carries no information, and asserting on mod state is most of what a mod agent wants to do.
+- `world.entity`: `world.block` for things that are not blocks. Abilities, attributes and capability
+  data live on the server entity, so it goes through the same command source `/data get` uses; the
+  client's own copy would answer confidently and wrongly. Takes a path, because a player's full NBT
+  is tens of kilobytes.
+- `screenshot` takes a `mouse` point and parks the cursor before capturing. The cursor is the one
+  piece of render state `options.txt` cannot pin, and every input command moves it.
+
 ### Phase 11 — what the second cold start found
 
 - A timed-out `wait.for expr` says what the expression actually did: how many times it ran, what it

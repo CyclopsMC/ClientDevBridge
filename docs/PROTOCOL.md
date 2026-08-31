@@ -77,7 +77,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | Method | Params | Result |
 |---|---|---|
 | `status` | – | `{ loaded, inWorld, screenClass, tick, fps, dimension, gameDir, glRenderer, player: { pos, yaw, pitch }, ...metrics }` |
-| `screenshot` | `{ region?: {x,y,w,h,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, region?, regionGui?, ...metrics }` |
+| `screenshot` | `{ region?: {x,y,w,h,space?}, mouse?: {x,y,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, region?, regionGui?, ...metrics }` |
 | `screen.snapshot` | `{ includeHidden?, maxDepth? }` | see below |
 | `screen.tooltip` | `{ x, y, space? }` | `{ lines: [string], source, slot?, item?, widget? }` |
 | `screen.open` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z] }` | `{ screenClass, opened, hint? }` |
@@ -101,6 +101,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.leave` | – | `{}` |
 | `world.list` | – | `{ worlds: [string] }` |
 | `world.command` | `{ command }` | `{ success, value, output: [string] }` |
+| `world.entity` | `{ selector?, path? }` | `{ selector, path, success, output, value }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
 | `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, predictedBroken, ticks, blockBefore, blockAfter, heldAfter, drops, collected }` |
 | `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, blockEntityBefore, blockEntityAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
@@ -267,6 +268,20 @@ wrenching all leave no screen behind, so `use` reports what changed instead of f
 part changes neither its block id nor its state. It is `SUCCESS` when the block handled the click
 and `PASS` when it did not — the finer distinctions Minecraft draws internally differ between
 versions and are deliberately not exposed, since one CLI release drives every branch.
+
+`world.entity` is `world.block` for things that are not blocks. It runs through the same command
+source `/data get` does, because abilities, attributes and capability data are on the **server**
+entity and the client's copy does not carry them — reading the client entity would answer
+confidently and wrongly. `value` is the data with the command's explanatory sentence stripped;
+`output` is the whole line. Pass `path` unless you really want a player's entire NBT, which is tens
+of kilobytes.
+
+`screenshot`'s `mouse` parks the pointer before the frame is captured. The cursor is part of the
+frame — a hover highlight, and in some GUIs a player model or an item that turns to follow it — and
+it is the only piece of render state not pinned by `options.txt`, so two captures taken after
+different clicks differ for reasons unrelated to what was being tested. It belongs on the capture
+rather than in a separate `input.mouseMove` so that a golden and the capture compared against it
+carry the same pin.
 
 `blockEntityBefore` and `blockEntityAfter` are the block entity's synced NBT as a string, or `""`
 where there is no block entity. They are the field that catches a machine being *configured* — a
