@@ -226,10 +226,24 @@ HELD_SLOT="$("$CLI" --project "$CONSUMER" --json snapshot \
 [[ -n "$HELD_SLOT" ]] || fail "the diamonds are not in the chest screen's slot list"
 "$CLI" --project "$CONSUMER" slot-click "$HELD_SLOT" --type quick_move
 MOVED="$("$CLI" --project "$CONSUMER" --json snapshot \
-  | python3 -c "import json,sys; s=json.load(sys.stdin)['container']['slots']; print(s[$HELD_SLOT]['item'], s[0]['item'])")"
+  | python3 -c "
+import json,sys
+# Looked up by 'index', not by position: --json omits the empty slots, so the array is not the
+# dense grid it used to accidentally be.
+s = {x['index']: x for x in json.load(sys.stdin)['container']['slots']}
+print(s.get($HELD_SLOT, {}).get('item'), s.get(0, {}).get('item'))")"
 [[ "$MOVED" == "None minecraft:diamond" ]] \
   || fail "quick_move left the slots as '$MOVED'; the stack did not move into the chest"
 echo "quick_move moved the stack out of the inventory and into the container"
+# --json omits the empty slots, which is most of a container: the same screen is an order of
+# magnitude smaller than it used to be, and --include-empty still has every rectangle.
+LEAN="$("$CLI" --project "$CONSUMER" --json snapshot | wc -c)"
+FULL="$("$CLI" --project "$CONSUMER" --json snapshot --include-empty | wc -c)"
+[[ "$LEAN" -lt "$FULL" ]] || fail "--json is not smaller than --include-empty ($LEAN vs $FULL)"
+"$CLI" --project "$CONSUMER" --json snapshot \
+  | python3 -c "import json,sys; c=json.load(sys.stdin)['container']; sys.exit(0 if c['slotCount'] > len(c['slots']) else 1)" \
+  || fail "slotCount should say how many slots there are when the empty ones are omitted"
+echo "the lean snapshot is $LEAN B against $FULL B with every empty slot"
 "$CLI" --project "$CONSUMER" close-screen >/dev/null
 
 log "Phase 3: using the item in your hand"
