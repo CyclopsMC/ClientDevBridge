@@ -173,7 +173,11 @@ CARD_SLOT="$("$CLI" --project "$WORK" --json snapshot \
   | python3 -c "import json,sys; print(next(s['index'] for s in json.load(sys.stdin)['container']['slots'] if s['item']))")"
 "$CLI" --project "$WORK" slot-click "$CARD_SLOT" --type quick_move
 "$CLI" --project "$WORK" --json snapshot \
-  | python3 -c "import json,sys; s=json.load(sys.stdin)['container']['slots']; sys.exit(0 if s[$CARD_SLOT]['item'] is None else 1)" \
+  | python3 -c "
+import json,sys
+# By 'index': --json omits the empty slots, so an emptied one is simply absent.
+s = {x['index']: x for x in json.load(sys.stdin)['container']['slots']}
+sys.exit(0 if s.get($CARD_SLOT, {}).get('item') is None else 1)" \
   || fail "quick_move did not move the card out of slot $CARD_SLOT"
 echo "quick_move works on a modded container screen too"
 "$CLI" --project "$WORK" close-screen >/dev/null
