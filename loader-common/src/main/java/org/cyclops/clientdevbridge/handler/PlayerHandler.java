@@ -115,7 +115,10 @@ public class PlayerHandler {
             int slot = new Params(raw).getInt("slot");
             return ClientThread.submit(() -> {
                 PlayerControl.selectHotbarSlot(slot);
-                JsonObject result = Json.object();
+                // What is now held, so a caller does not have to follow every selection with an
+                // inventory read to find out whether it picked up the item it meant to.
+                JsonObject result = PlayerControl.describeStack(slot,
+                        ClientState.requirePlayer().getInventory().getItem(slot));
                 result.addProperty("selected", slot);
                 return result;
             });

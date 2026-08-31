@@ -76,7 +76,7 @@ public class Keys {
         }
         throw RpcException.invalidParams("Unknown key '" + raw + "'. Use a GLFW name such as 'GLFW_KEY_E', "
                 + "a single letter or digit, 'F3', a named key like 'ESCAPE', a raw integer key code, "
-                + "or -- for a held action -- 'ATTACK', 'USE', 'PICK' or 'MOUSE_LEFT'.");
+                + "or -- for a held action -- 'ATTACK', 'USE', 'PICK', 'MOUSE_LEFT' or 'HOTBAR_1'.");
     }
 
     /**
@@ -99,6 +99,12 @@ public class Keys {
             case "ATTACK", "BREAK", "MINE" -> options.keyAttack.getDefaultKey();
             case "USE", "PLACE" -> options.keyUse.getDefaultKey();
             case "PICK", "PICK_ITEM" -> options.keyPickItem.getDefaultKey();
+            // The number row, which selects a hotbar slot. Bound like any other key, but named
+            // here because a bare "3" parses as a key code first and never reaches the binding.
+            case "HOTBAR_1", "HOTBAR_2", "HOTBAR_3", "HOTBAR_4", "HOTBAR_5",
+                 "HOTBAR_6", "HOTBAR_7", "HOTBAR_8", "HOTBAR_9" ->
+                    options.keyHotbarSlots[Integer.parseInt(name.substring("HOTBAR_".length())) - 1]
+                            .getDefaultKey();
             case "MOUSE_LEFT" -> toMouseKey(0);
             case "MOUSE_RIGHT" -> toMouseKey(1);
             case "MOUSE_MIDDLE" -> toMouseKey(2);

@@ -224,9 +224,13 @@ public class InputControl {
     /**
      * @param action one of {@code press}, {@code release} or {@code tap}
      */
-    public static void key(int keyCode, String action, int modifiers) {
+    public static void key(InputConstants.Key key, String action, int modifiers) {
         Screen screen = ClientState.screen();
-        if (screen != null) {
+        // A screen takes keyboard events by code. A mouse binding has no code to give it, so those
+        // go down the binding path even with a screen open -- they would otherwise be delivered as
+        // whichever keyboard key happens to share the button's number.
+        if (screen != null && key.getType() == InputConstants.Type.KEYSYM) {
+            int keyCode = key.getValue();
             switch (action) {
                 case "press" -> screen.keyPressed(keyCode, -1, modifiers);
                 case "release" -> screen.keyReleased(keyCode, -1, modifiers);
@@ -238,16 +242,17 @@ public class InputControl {
             return;
         }
 
-        KeyMapping mapping = Keys.findMapping(keyCode);
+        KeyMapping mapping = Keys.findMapping(key);
         if (mapping == null) {
-            throw RpcException.illegalState("No screen is open and no key binding matches key code " + keyCode
-                    + ", so there is nothing to deliver the key press to.");
+            throw RpcException.illegalState("No screen is open and no key binding matches "
+                    + Keys.describe(key) + ", so there is nothing to deliver the key press to. "
+                    + "In-world input has to go through a binding: name the action ('ATTACK', 'USE', "
+                    + "'HOTBAR_3') rather than the key it happens to sit on.");
         }
-        InputConstants.Key key = mapping.getDefaultKey();
         switch (action) {
-            case "press" -> KeyMapping.set(key, true);
-            case "release" -> KeyMapping.set(key, false);
-            default -> KeyMapping.click(key);
+            case "press" -> KeyMapping.set(mapping.getDefaultKey(), true);
+            case "release" -> KeyMapping.set(mapping.getDefaultKey(), false);
+            default -> KeyMapping.click(mapping.getDefaultKey());
         }
     }
 

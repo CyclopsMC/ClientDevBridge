@@ -16,6 +16,27 @@ import org.cyclops.clientdevbridge.snapshot.BlockExtractors;
  */
 public class WorldQuery {
 
+    /**
+     * A block entity's synced data as a string, or "" when there is none.
+     *
+     * Used to tell whether an interaction changed anything: for a multipart block the whole change
+     * lives here, and comparing block ids and states says nothing at all.
+     */
+    public static String blockEntityData(BlockPos pos) {
+        net.minecraft.world.level.block.entity.BlockEntity blockEntity =
+                ClientState.requireLevel().getBlockEntity(pos);
+        if (blockEntity == null) {
+            return "";
+        }
+        try {
+            return blockEntity.saveWithoutMetadata(ClientState.requireLevel().registryAccess()).toString();
+        } catch (Throwable e) {
+            // A block entity that refuses to serialise should not fail the interaction that only
+            // wanted to know whether it had changed.
+            return "";
+        }
+    }
+
     public static JsonObject block(BlockPos pos, boolean includeNbt) {
         BlockState state = ClientState.requireLevel().getBlockState(pos);
 
