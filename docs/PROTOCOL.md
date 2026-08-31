@@ -102,7 +102,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.list` | – | `{ worlds: [string] }` |
 | `world.command` | `{ command }` | `{ success, value, output: [string] }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
-| `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, predictedBroken, ticks, blockBefore, blockAfter, heldAfter, drops }` |
+| `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, predictedBroken, ticks, blockBefore, blockAfter, heldAfter, drops, collected }` |
 | `world.use` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], hand?, sneak? }` | `{ pos, face, result, blockBefore, blockAfter, blockEntityBefore, blockEntityAfter, heldBefore, heldAfter, screenClass, screenOpened }` |
 | `wait.ticks` | `{ ticks }` | `{ tick }` |
 | `wait.for` | `{ condition, value?, timeoutMs? }` | `{ met, condition, screenClass, inWorld }` |
@@ -158,6 +158,13 @@ have to know.
 progress **once per tick** until the block gives way or `timeoutTicks` runs out. Once per tick and
 not in a loop: looping does break the block, because an integrated server validates loosely, but
 then the tool stops mattering and `ticks` stops meaning anything.
+
+`drops` is what is lying on the ground afterwards, with each one's position, because a drop is
+thrown rather than placed and lands a block or two away. `collected` is what reached the player's
+inventory instead: a drop becomes collectable ten ticks after it spawns, which is exactly the settle
+this waits out, so mining within arm's reach routinely ends with the item in hand and nothing on the
+ground. **Read both.** Either one alone reports a break that dropped something as dropping nothing,
+depending on timing you do not control.
 
 `ticks` is worth reading. A diamond pickaxe takes about nine on cobblestone and bare hands take
 about two hundred and drop nothing — so a large number is usually the answer to "why did my block
