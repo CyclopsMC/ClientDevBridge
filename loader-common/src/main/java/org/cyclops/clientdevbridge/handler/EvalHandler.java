@@ -78,11 +78,43 @@ public class EvalHandler {
     }
 
     /**
+     * What a repeatedly-evaluated expression last came out as, so a wait that times out can say.
+     *
+     * A wait on an expression that throws, or that answers something other than a boolean, already
+     * fails immediately with a message naming the cause. The one case left blind is the expression
+     * that is well-formed and simply never true -- and there the reply used to describe the screen
+     * and the world, which have nothing to do with what was asked.
+     */
+    public static final class Probe {
+        private final java.util.concurrent.atomic.AtomicInteger evaluations =
+                new java.util.concurrent.atomic.AtomicInteger();
+        @Nullable
+        private volatile Object lastValue;
+
+        public int evaluations() {
+            return evaluations.get();
+        }
+
+        @Nullable
+        public Object lastValue() {
+            return lastValue;
+        }
+    }
+
+    /**
      * Evaluates on the client thread and coerces the result to a boolean, for {@code wait.for expr}.
      */
     public static boolean evaluateAsBoolean(String expression) {
+        return evaluateAsBoolean(expression, null);
+    }
+
+    public static boolean evaluateAsBoolean(String expression, @Nullable Probe probe) {
         requireEnabled();
         Object value = evaluate(expression, new StringWriter());
+        if (probe != null) {
+            probe.evaluations.incrementAndGet();
+            probe.lastValue = value;
+        }
         if (value instanceof Boolean bool) {
             return bool;
         }
@@ -111,7 +143,11 @@ public class EvalHandler {
         try {
             return engine.eval(code, context);
         } catch (ScriptException e) {
-            throw RpcException.invalidParams("The script failed: " + e.getMessage() + hintFor(code, e));
+            // Named, because a Groovy error does not say it is one: "Possible solutions: grep(),
+            // tap(Closure)" is baffling to someone who assumed the engine was JavaScript, and
+            // nothing else in the reply tells them which language they are writing.
+            throw RpcException.invalidParams("The Groovy script failed: " + e.getMessage()
+                    + hintFor(code, e));
         }
     }
 
@@ -184,6 +220,26 @@ public class EvalHandler {
      * Converts a script result into JSON. Anything without an obvious mapping is described by its
      * {@code toString} plus its type, which is far more useful than an empty object.
      */
+    /**
+     * The mistake that makes a well-formed wait expression never come true.
+     *
+     * {@code dev.prop} answers the property's own value, which for {@code lit} is a Boolean and for
+     * {@code power} an Integer -- so comparing it against a quoted string is false forever, and a
+     * wait on it can only time out. This is the same class of advice as {@link #hintFor}: the
+     * failure is not an error anywhere, so nothing else will ever point at it.
+     */
+    @Nullable
+    public static String hintForExpression(String expression) {
+        if (expression.contains("dev.prop") && expression.matches("(?s).*==\\s*['\"].*")) {
+            return "dev.prop answers the property's own typed value -- Boolean for 'lit', Integer "
+                    + "for 'power', a String only where the property really is textual -- so "
+                    + "comparing it against a quoted string is never true. Write == true rather "
+                    + "than == 'true'. 'eval' shows which you have: a String comes back quoted, a "
+                    + "Boolean does not.";
+        }
+        return null;
+    }
+
     static com.google.gson.JsonElement describe(@Nullable Object value) {
         if (value == null) {
             return com.google.gson.JsonNull.INSTANCE;
