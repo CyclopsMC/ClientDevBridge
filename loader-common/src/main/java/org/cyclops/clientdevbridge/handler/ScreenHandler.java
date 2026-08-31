@@ -61,12 +61,16 @@ public class ScreenHandler {
                     }));
         });
 
-        dispatcher.register("screen.close", raw -> ClientThread.run(ScreenControl::close)
-                .thenApply(ignored -> {
-                    JsonObject result = Json.object();
-                    result.addProperty("screenClass", (String) null);
-                    return result;
-                }));
+        // Reports whatever is on screen afterwards rather than assuming nothing is. Closing a
+        // screen does not always mean closing to the world: a mod's onClose can hand focus back to
+        // the screen that opened it, and reading back null there sends a caller looking for a bug
+        // in the click it just made.
+        dispatcher.register("screen.close", raw -> ClientThread.submit(() -> {
+            ScreenControl.close();
+            JsonObject result = Json.object();
+            result.addProperty("screenClass", ClientState.screenClass());
+            return result;
+        }));
     }
 
     /**

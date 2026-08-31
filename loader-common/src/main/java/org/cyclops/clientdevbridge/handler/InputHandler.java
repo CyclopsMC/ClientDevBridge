@@ -130,15 +130,19 @@ public class InputHandler {
                     .thenApply(ignored -> afterInput());
         });
 
+        // Resolved through toBinding rather than toKeyCode, so the action names reach this too:
+        // tapping HOTBAR_3 or USE is a key press like any other, and refusing them here while
+        // input.hold accepts them was a distinction with no reason behind it.
         dispatcher.register("input.key", raw -> {
             Params params = new Params(raw);
-            int keyCode = Keys.toKeyCode(params.raw().get("key").isJsonPrimitive()
-                    && params.raw().get("key").getAsJsonPrimitive().isNumber()
-                    ? String.valueOf(params.getInt("key"))
-                    : params.getString("key"));
+            com.mojang.blaze3d.platform.InputConstants.Key key =
+                    Keys.toBinding(params.raw().get("key").isJsonPrimitive()
+                            && params.raw().get("key").getAsJsonPrimitive().isNumber()
+                            ? String.valueOf(params.getInt("key"))
+                            : params.getString("key"));
             String action = params.getEnum("action", "tap", "press", "release", "tap");
             int modifiers = params.getInt("modifiers", 0);
-            return ClientThread.run(() -> InputControl.key(keyCode, action, modifiers))
+            return ClientThread.run(() -> InputControl.key(key, action, modifiers))
                     .thenApply(ignored -> afterInput());
         });
 

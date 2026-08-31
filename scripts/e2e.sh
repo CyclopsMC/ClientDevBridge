@@ -379,6 +379,45 @@ MISSING="$("$CLI" --project "$CONSUMER" eval "dev.prop(8, 4, 2, 'nonesuch')" 2>&
 grep -q "It has:" <<<"$MISSING" \
   || fail "dev.prop on a missing property should list the ones that exist, but said: $MISSING"
 
+log "Phase 5: hotbar selection, the screen in focus after a close, and a region echo"
+# Selecting a hotbar slot: the only way to hold a second item, since `give` fills the first free
+# slot and everything that places, uses or mines acts on the selected one.
+"$CLI" --project "$CONSUMER" teleport 0 4 0 >/dev/null
+"$CLI" --project "$CONSUMER" command "clear" >/dev/null
+"$CLI" --project "$CONSUMER" give minecraft:diamond_pickaxe 1 >/dev/null
+"$CLI" --project "$CONSUMER" give minecraft:cobblestone 8 >/dev/null
+"$CLI" --project "$CONSUMER" hold 1 | grep -q "minecraft:cobblestone" \
+  || fail "hold 1 did not report the cobblestone in the second hotbar slot"
+"$CLI" --project "$CONSUMER" inventory | grep -qE '^> \[ 1\]' || fail "hold 1 did not move the selection"
+# The number row through the key path. Named, not typed as a digit: a bare "1" parses as the raw
+# key code 1, which is bound to nothing -- which is the whole reason the HOTBAR_n names exist.
+"$CLI" --project "$CONSUMER" key HOTBAR_1 >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 2 >/dev/null
+"$CLI" --project "$CONSUMER" inventory | grep -qE '^> \[ 0\]' || fail "key HOTBAR_1 did not select hotbar slot 0"
+UNBOUND="$("$CLI" --project "$CONSUMER" key 1 2>&1 || true)"
+grep -q "HOTBAR_3" <<<"$UNBOUND" \
+  || fail "an unbound in-world key should point at the action names, but said: $UNBOUND"
+BAD_SLOT="$("$CLI" --project "$CONSUMER" hold 9 2>&1 || true)"
+grep -q "0-8" <<<"$BAD_SLOT" || fail "hold should reject a slot outside the hotbar, but said: $BAD_SLOT"
+
+# Giving an item while a container screen is open: reported as closing the screen, so it is pinned
+# either way -- whichever it does, a change to it should be a deliberate one.
+"$CLI" --project "$CONSUMER" inspect-gui 8 4 2 >/dev/null
+"$CLI" --project "$CONSUMER" give minecraft:stone 1 >/dev/null
+GIVE_SCREEN="$("$CLI" --project "$CONSUMER" status)"
+grep -qi "ContainerScreen" <<<"$GIVE_SCREEN" \
+  || fail "give closed the open container screen; status said: $GIVE_SCREEN"
+echo "give leaves an open container screen alone"
+
+# Closing reports what is in focus afterwards, which is not always nothing.
+"$CLI" --project "$CONSUMER" close-screen | grep -qi "world has input" \
+  || fail "close-screen should say the world has input once nothing is in focus"
+
+# A gui-space region comes back as a pixel-sized image, so the echo is the only way to tell a crop
+# that landed on the widget from one that missed it by a gui scale factor.
+"$CLI" --project "$CONSUMER" screenshot --region 10,10,40,20 --name region-echo | grep -q "cropped to gui 10,10,40,20" \
+  || fail "screenshot --region did not echo the gui rectangle it captured"
+
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null
 

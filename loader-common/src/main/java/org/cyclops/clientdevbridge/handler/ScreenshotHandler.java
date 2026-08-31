@@ -47,11 +47,12 @@ public class ScreenshotHandler {
                     .thenCompose(ignored -> ClientThread.submit(() -> new Request(
                             resolveRegion(regionObject), scale, Geometry.metrics())))
                     .thenCompose(request -> FrameCapture.capture(request.region(), request.scale())
-                            .thenApply(png -> render(png, request.metrics())));
+                            .thenApply(png -> render(png, request.metrics(), request.region())));
         });
     }
 
-    private static JsonObject render(FrameCapture.Png png, JsonObject metrics) {
+    private static JsonObject render(FrameCapture.Png png, JsonObject metrics,
+                                     @Nullable FrameCapture.Region region) {
         JsonObject result = Json.object();
         result.addProperty("png", Base64.getEncoder().encodeToString(png.bytes()));
         result.addProperty("width", png.width());
@@ -59,6 +60,15 @@ public class ScreenshotHandler {
         result.addProperty("bytes", png.bytes().length);
         for (String key : metrics.keySet()) {
             result.add(key, metrics.get(key));
+        }
+        // The rectangle that was actually captured, echoed in both spaces. A caller who asked in
+        // gui space gets a pixel-sized image back, so without this there is no way to tell a region
+        // that landed where it was meant to from one that was off by a gui scale factor.
+        if (region != null) {
+            result.add("region", Json.arrayOfNumbers(region.x(), region.y(), region.width(), region.height()));
+            double guiScale = metrics.get("guiScale").getAsDouble();
+            result.add("regionGui", Json.arrayOfNumbers(region.x() / guiScale, region.y() / guiScale,
+                    region.width() / guiScale, region.height() / guiScale));
         }
         return result;
     }
