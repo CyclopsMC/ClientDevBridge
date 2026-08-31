@@ -634,6 +634,88 @@ ten image reads is 5.5k tokens, which is three times what this entire run cost.
 
 ---
 
+## Found by surveying every CyclopsMC mod for 1.21.1
+
+Fourteen CyclopsMC mods publish 1.21.1/NeoForge builds. Eleven were resolved against this project's
+NeoForge pin and loaded into **one client together** — Cyclops Core, Common Capabilities, Integrated
+Dynamics, Integrated Crafting, Integrated Scripting, Integrated Terminals, Integrated Tunnels,
+Integrated REST, Capability Proxy, Colossal Chests and EvilCraft. Integrated NBT has no build that
+accepts NeoForge 21.1.2; Flopper is already the e2e fixture. **15m 35s** for the lot.
+
+Everything worked. Eight GUIs opened first try — `uncolossal_chest`, `blood_infuser`,
+`scripting_drive`, `http`, the storage terminal, and the crafting/tunnels/terminals cable parts —
+a Colossal Chest multiblock assembled from `setblock` and opened, `break` mined an EvilCraft ore,
+`use-item` opened EvilCraft's Origins of Darkness, `tooltip` read a modded item, and `dev.props`
+read a modded block state. Capability Proxy has no GUI and the "one per side" hint said so
+correctly. No bridge change was needed to drive any of them.
+
+Three things are worth fixing.
+
+### 1. `dev` cannot reach the registries · mod · the one that actually blocked
+
+"What does this mod register" is the first question you have about an unfamiliar mod, and it cannot
+be asked. Naming `BuiltInRegistries` in a script throws `ExceptionInInitializerError` — the class
+loader wall `dev` exists to remove — and `dev` has no registry accessor. The survey worked around it
+by unzipping the jars and reading `assets/*/models/item/*.json`, which is offline archaeology to
+learn something the running game knows.
+
+**The plan.** Three methods on `ScriptHelpers`, all of which run on the game's side where the loader
+is right:
+
+- `dev.blocks("evilcraft")` / `dev.items("evilcraft")` — the registry names in a namespace, or every
+  namespace when given none.
+- `dev.namespaces()` — which mods actually registered anything, which is also the fastest way to
+  confirm a mod loaded and is not merely present.
+
+A CLI `registry <kind> [namespace]` would round it off, and matters because these lists are long:
+EvilCraft alone has 53 blocks and 90 items, so this is a place to be careful about output size —
+names only, no metadata, and a `--filter`.
+
+### 2. `broken` is a prediction, `blockAfter` is the truth, and they can disagree · mod
+
+`world.break` computes `broken` from the client's own state the moment the mining loop ends, and
+reads `blockAfter` ten ticks later after the drop settle. During the survey I repeatedly saw replies
+carrying `broken: true` beside `blockAfter: Block{minecraft:stone}` — the reply asserting success
+while its own evidence said the block was still there.
+
+I could **not** reproduce it in a clean world: there, both a vanilla and a modded block broke
+correctly with a drop, and the confounder was almost certainly my own accumulated world state
+(gamemode switches and an uncertain held item). So this is not a confirmed break failure.
+
+The reporting flaw is real regardless of what caused the disagreement, and is true by construction:
+two fields describing the same fact are sampled ten ticks apart and nothing reconciles them. Derive
+`broken` from the post-settle state — the same read `blockAfter` uses — so a reply cannot contradict
+itself. Keep `ticks` as the moment the client thought it went, which is still the useful number.
+
+### 3. A disconnect is reported as "not in a world" · mod
+
+Destroying a cable out from under its parts made Integrated Dynamics throw server-side, and the
+client was kicked to a `DisconnectedScreen`. Every world command then answered:
+
+```
+error: Not in a world. Run 'clientdevbridge world-reset' or 'world-load <name>' first.
+```
+
+True, and it hides the event. The client *was* in a world and was kicked out by an exception whose
+text is sitting on the screen the bridge can already read. A caller follows the advice, resets the
+world, and never learns that their mod threw — which is exactly the thing they would most want to
+know.
+
+**The plan.** When `requirePlayer`/`requireLevel` fails and the current screen is a
+`DisconnectedScreen`, say so and quote its reason instead of the generic advice. The message becomes
+"The client was disconnected: <reason>", which is both the diagnosis and the explanation for why
+there is no world. `mcadapter` already has `ClientState.screen()`; this is reading the reason off it.
+
+### Not worth doing
+
+- **A per-mod fixture.** Eleven mods in one client is the realistic pack case and found more than
+  eleven separate runs would have, in a fraction of the time.
+- **Anything about the crash itself.** The bridge behaved correctly: it stayed up, kept answering,
+  and `snapshot` showed the disconnect screen with the full stack reason. Only the wording of the
+  follow-up errors is wrong.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
