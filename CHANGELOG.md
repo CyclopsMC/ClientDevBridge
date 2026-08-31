@@ -4,6 +4,16 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 11 — what the second cold start found
+
+- A timed-out `wait.for expr` says what the expression actually did: how many times it ran, what it
+  last answered, and its type. It used to report the screen and the world, which describe nothing an
+  expression asked about — so a false expression, a throwing one and an unbound name were
+  indistinguishable. An expression comparing `dev.prop` against a quoted string, which is false
+  forever because `dev.prop` answers the property's own typed value, is called out by name.
+- `eval` failures say **Groovy**. "Possible solutions: grep(), tap(Closure)" is baffling to someone
+  who assumed the engine was JavaScript, and nothing else in the reply named the language.
+
 ### Phase 10 — what a cold start found
 
 - `--face` and `--at` aim at the block's real voxel shape rather than at the unit cube. A slab, a

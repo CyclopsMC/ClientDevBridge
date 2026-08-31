@@ -390,6 +390,30 @@ MISSING="$("$CLI" --project "$CONSUMER" eval "dev.prop(8, 4, 2, 'nonesuch')" 2>&
 grep -q "It has:" <<<"$MISSING" \
   || fail "dev.prop on a missing property should list the ones that exist, but said: $MISSING"
 
+# A Boolean and the string "false" must not read the same, since telling them apart is the whole
+# reason a wait expression compares against the right one.
+"$CLI" --project "$CONSUMER" eval "'false'" | grep -q '"false"' \
+  || fail "eval should quote a String so it cannot be mistaken for a Boolean"
+"$CLI" --project "$CONSUMER" eval "1 == 2" | grep -qx "false" \
+  || fail "eval should print a Boolean unquoted"
+
+# A wait on an expression that is well-formed and simply never true used to report the screen and
+# the world, which say nothing about it -- so a false expression, a throwing one and an unbound
+# name all looked identical. The one that cost a cold start six minutes is the string comparison.
+STALLED="$("$CLI" --project "$CONSUMER" wait --expr "dev.prop(8, 4, 2, 'type') == 'true'" --timeout 2000 2>&1 || true)"
+grep -q "was evaluated" <<<"$STALLED" \
+  || fail "a timed-out wait --expr should say how often it ran, but said: $STALLED"
+grep -q "answered false every time" <<<"$STALLED" \
+  || fail "a timed-out wait --expr should say what it answered, but said: $STALLED"
+grep -q "typed value" <<<"$STALLED" \
+  || fail "comparing dev.prop against a quoted string should be called out, but said: $STALLED"
+# A throwing expression still fails at once rather than waiting out the timeout, which is what
+# makes the message above safe to claim the expression is well-formed.
+THROWS="$("$CLI" --project "$CONSUMER" wait --expr "dev.nosuchmethod()" --timeout 2000 2>&1 || true)"
+grep -q "Groovy" <<<"$THROWS" \
+  || fail "a failing script should name the language it is, but said: $THROWS"
+echo "a wait that times out says what the expression actually did"
+
 log "Phase 5: hotbar selection, the screen in focus after a close, and a region echo"
 # Selecting a hotbar slot: the only way to hold a second item, since `give` fills the first free
 # slot and everything that places, uses or mines acts on the selected one.

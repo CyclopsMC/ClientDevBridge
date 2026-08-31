@@ -7,6 +7,7 @@ import org.cyclops.clientdevbridge.protocol.Dispatcher;
 import org.cyclops.clientdevbridge.protocol.Json;
 import org.cyclops.clientdevbridge.protocol.Params;
 import org.cyclops.clientdevbridge.protocol.RpcException;
+import javax.annotation.Nullable;
 
 import java.util.function.BooleanSupplier;
 
@@ -50,19 +51,38 @@ public class WaitHandler {
             long timeoutMs = params.getLong("timeoutMs", DEFAULT_TIMEOUT_MS);
             long timeoutTicks = Math.max(1, timeoutMs / 50);
 
-            BooleanSupplier predicate = predicate(condition, params);
+            // Only for 'expr', which is the one condition whose failure the screen and the world
+            // say nothing about.
+            EvalHandler.Probe probe = "expr".equals(condition) ? new EvalHandler.Probe() : null;
+            BooleanSupplier predicate = predicate(condition, params, probe);
             return McAdapter.tickClock().awaitCondition(predicate, timeoutTicks, null).thenApply(met -> {
                 JsonObject result = Json.object();
                 result.addProperty("met", met);
                 result.addProperty("condition", condition);
                 result.addProperty("screenClass", ClientState.screenClass());
                 result.addProperty("inWorld", ClientState.inWorld());
+                if (!met && probe != null) {
+                    // What the expression actually did, which is the whole question here. An
+                    // expression that throws, or that answers a non-boolean, has already failed the
+                    // request outright by this point -- so reaching a timeout means it evaluated
+                    // cleanly every time and was false every time, and the operands are what to
+                    // look at. Saying so is the difference between that and a caller wondering
+                    // whether 'dev' was even bound.
+                    String expression = params.getString("value");
+                    result.addProperty("expression", expression);
+                    result.addProperty("evaluations", probe.evaluations());
+                    result.add("lastValue", EvalHandler.describe(probe.lastValue()));
+                    result.addProperty("lastValueType", probe.lastValue() == null
+                            ? null : probe.lastValue().getClass().getSimpleName());
+                    result.addProperty("hint", EvalHandler.hintForExpression(expression));
+                }
                 return result;
             });
         });
     }
 
-    private static BooleanSupplier predicate(String condition, Params params) {
+    private static BooleanSupplier predicate(String condition, Params params,
+                                             @Nullable EvalHandler.Probe probe) {
         switch (condition) {
             case "screen": {
                 String value = params.getString("value");
@@ -81,7 +101,7 @@ public class WaitHandler {
             }
             case "expr": {
                 String expression = params.getString("value");
-                return () -> EvalHandler.evaluateAsBoolean(expression);
+                return () -> EvalHandler.evaluateAsBoolean(expression, probe);
             }
             default:
                 throw RpcException.invalidParams("Unsupported wait condition '" + condition + "'.");
