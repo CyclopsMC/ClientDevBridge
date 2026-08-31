@@ -722,6 +722,157 @@ there is no world. `mcadapter` already has `ClientState.screen()`; this is readi
 
 ---
 
+## What a cold start actually looks like
+
+An agent with no prior knowledge of this project was given the real Integrated Dynamics repository,
+the URL of the CLI, and the redstone-clock task. It succeeded — reader, writer, variable card,
+clock aspect reconfigured through the settings sub-screen, lamp blinking five seconds on and five
+off, verified three ways. It took **80 minutes, and 67 of them were spent getting a client that
+answers at all.** The mod work took 13.
+
+That ratio is the finding. Everything below the first three items is polish; the first three are the
+difference between a tool that works and a tool that works *for someone who did not build it*.
+
+The three were invisible from here because of how this project tests itself: both e2e fixtures are
+multiloader, and both run where every dependency already resolves. Neither condition holds for a
+real mod repository.
+
+### 1. The bridge injects nothing into a single-module project · cli · **it simply does not work**
+
+`detectGradleTask` answers `":loader-neoforge:runClient"` for a multiloader repo and `"runClient"` —
+no leading colon — for a single-module one. `launcher.ts` then does:
+
+```js
+targetProjectPath: project.gradleTask.replace(/:runClient$/, '') || ':',
+```
+
+The pattern requires the colon, so on a single-module project it does not match, the result is the
+literal string `"runClient"`, and `|| ':'` never fires because that string is truthy. The generated
+init script's guard is `if (project.path != clientDevBridgeTarget) return` — and no Gradle project
+has the path `"runClient"`, so **every project returns early and nothing is injected at all**. The
+client boots as a plain dev client and `status` says "Running, but not answering yet" forever, with
+nothing anywhere naming the cause.
+
+Integrated Dynamics is a single-module repo. So is most of the modding ecosystem.
+
+**The plan.** Derive the path properly rather than by string surgery: a task of `"runClient"` means
+the root project, `":"`. Then add the test that would have caught it — a single-module fixture
+alongside the multiloader one, because the whole failure lives in the difference between them. That
+fixture is the important half of this item; the code fix is one line.
+
+### 2. JVM arguments are dropped silently when `runClient` is not a `JavaExec` · cli
+
+The init script sets the properties with
+`tasks.matching { it.name == 'runClient' }.configureEach { if (task instanceof JavaExec) … }`. That
+holds for ModDevGradle and Loom and not for NeoGradle 7's userdev run task, so on that toolchain the
+mod loads and then logs
+
+```
+ClientDevBridge is present but inert: pass -Dclientdevbridge.enabled=true to enable it.
+```
+
+while the CLI reports nothing but a timeout. The script's own `else` warning did not reach the
+caller either.
+
+**The plan**, in three parts, because one is not enough:
+
+- Set the properties through each plugin's own run DSL when it is present, and keep the `JavaExec`
+  path as the fallback rather than the only route.
+- **Always also pass them in the environment.** The mod reads system properties, and
+  `JAVA_TOOL_OPTIONS` reaches the forked client whatever the plugin does — which is exactly the
+  workaround that unblocked the cold start. Belt and braces, because the cost of the belt failing is
+  a fifteen-minute silent timeout.
+- Make the timeout diagnose itself. `start` already tails `gradle.log` looking for the handshake;
+  it should also look for "present but inert" and for the absence of the mod on the classpath, and
+  say which of the two happened instead of "Gradle exited before the client came up".
+
+### 3. `doctor` reports "ok" for a Maven it cannot actually use · cli
+
+Every check is an HTTPS `HEAD` for reachability. `maven.pkg.github.com` answers a HEAD from anyone;
+resolving from it needs credentials, and GitHub Packages rejects a token without the right scope with
+`Username must not be null!` — a message this project's own `docs/cloud-setup.md` already calls out
+as unhelpful. So `doctor` said "Everything checks out", and `start` then burned **6m 26s** of Gradle
+before failing on exactly that.
+
+**The plan.** Add one real resolution probe: a throwaway Gradle invocation that resolves a single
+known coordinate from each repository the project declares, run only when `doctor` is asked, with a
+short timeout. Reachability is not usability, and the whole point of `doctor` is to fail in twenty
+seconds instead of six minutes.
+
+### 4. `--face` aims at the full block face, misses a non-full model, and reports SUCCESS · mod
+
+An Integrated Dynamics cable's core is 6/16–10/16, so the centre of its west face is air. `use 0 4 2
+--face west` reported `SUCCESS` and did nothing; the caller then had to read
+`BlockCable.CABLE_CENTER_BOUNDINGBOX` out of the mod's source to compute a point that hits.
+
+`--face` should aim at the centre of the block's **actual voxel shape** on that side, not at the
+centre of the unit cube's face. `Aim` already has the position and can ask for
+`state.getShape(level, pos)`; taking the shape's bounds on the requested axis costs nothing and
+makes `--face` mean what a caller assumes it means. This is the interaction the README advertises as
+the multipart headline, and it is the one that misses.
+
+### 5. "No visible change" is wrong whenever the change is in block-entity NBT · mod
+
+Adding a part to a cable changes neither the block id, nor the state, nor — in creative — the held
+item, so `world.use`'s change detector reported "no visible change to the block, the hand or the
+screen" for placements that had in fact worked. The cold start lost eight minutes re-aiming at a
+part that was already there.
+
+The detector should compare the block entity's synced NBT alongside the state. And `block --json`
+should carry that NBT: the README already promises "block, state, properties, block entity NBT" and
+`--json` gives only the block entity's *type*, with the NBT reachable solely through text-mode
+`--nbt`. Two fixes, one cause.
+
+### 6. There is no way to select a hotbar slot · mod and cli
+
+`give` drops into the first free slot and leaves the selection alone, so holding a second item type
+is impossible. `key 3` is refused — the number keys are not bound to the hotbar in the mapping
+lookup — and `scroll` refuses to work with no screen open, which is precisely when a player scrolls
+to change slots.
+
+`PlayerControl.selectHotbarSlot` already exists and is reachable through `player.hotbar`. It needs a
+CLI verb — `hold <slot>` — and `key 1`–`9` should reach the hotbar bindings the way `ATTACK` and
+`USE` now reach the mouse. Placing things is the bread and butter of this tool and this is the gap
+in it.
+
+### 7. Smaller, in descending order
+
+- **`close-screen` reports success while a parent screen is still open.** It presses escape until no
+  screen remains *or the screen stops changing*, and a sub-screen returning to its parent is the
+  second case. It should print the screen now in focus, as `click` does, so "Closed the screen"
+  cannot mean "you are now looking at a different one".
+- **`give` closes an open container screen**, losing the GUI and any search filter with it. Fix or
+  document.
+- **`teleport` reported "the player fell or was pushed" for a teleport that landed exactly where
+  asked.** This is the case `isSettledAt` was added to fix and it was still seen, so the fix is
+  incomplete rather than absent — needs reproduction before a diagnosis.
+- **`screenshot --region` takes GUI coordinates and reports the violation in pixels**, so the error
+  names 854 when the constraint the caller broke was 427. Echo the GUI-space bound.
+- **`start` writes to the consumer's `.gitignore`** on a repository the README promises not to
+  modify. Needs `--no-gitignore`, or to be opt-in.
+- **The README oversells `--include-empty`** — it reads as though it affects `snapshot` generally
+  when it only affects `--json`. My wording; a sentence fixes it.
+- **Mod-drawn fields are invisible to `snapshot`.** Integrated Dynamics' aspect-settings value box is
+  painted by the mod's own renderer rather than registered as a widget, so `set-text` has nothing to
+  bind to and the caller falls back to measuring pixels off a screenshot. Not fixable in general;
+  worth a line in the docs saying so, and saying that the pixel fallback is expected there.
+
+### What the cold start said worked
+
+Worth recording, because it is the half that did not cost anything: `inspect-gui`, `snapshot` and
+`find` with `/root/children[N]` paths, `slot-click` by index, `set-text`, `tooltip --at`,
+`block --nbt`, `wait --ticks`, `screenshot --diff`, and the `eval` error that names `dev.pos(x,y,z)`
+— singled out as "a model of a good error". Once a client was up, driving two modded GUIs was quick.
+
+### The order
+
+1, 2 and 3 first and together: they are one story, which is that starting a client against a real
+repository is unreliable and fails silently. The single-module fixture in item 1 is the piece that
+keeps them fixed. Then 4 and 5, which are the bridge reporting success for things that did not
+happen — the worst kind of wrong. Then 6, then the rest.
+
+---
+
 ## Not on this list
 
 Some things that hurt during the ID work turned out to be fixed by the work itself, and
