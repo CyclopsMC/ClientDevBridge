@@ -40,18 +40,23 @@ public class WorldControl {
      * disappearing, and no advancement toasts drifting across a screenshot.
      */
     private static final List<String> DETERMINISM_GAMERULES = List.of(
-            "doDaylightCycle false",
-            "doWeatherCycle false",
-            "doMobSpawning false",
-            "doFireTick false",
-            "randomTickSpeed 0",
-            "mobGriefing false",
-            "doTraderSpawning false",
-            "doPatrolSpawning false",
-            "announceAdvancements false",
-            "sendCommandFeedback true",
-            "doInsomnia false",
-            "playersSleepingPercentage 200");
+            // Minecraft 26 renamed every game rule to a snake_case registry id, and renamed several
+            // outright: doDaylightCycle became advance_time, announceAdvancements became
+            // show_advancement_messages, doInsomnia became spawn_phantoms, and doFireTick became a
+            // radius rather than a flag. The 1.21 names are not merely deprecated here, they are
+            // rejected -- which is why applyDeterminism now checks each one.
+            "advance_time false",
+            "advance_weather false",
+            "spawn_mobs false",
+            "fire_spread_radius_around_player 0",
+            "random_tick_speed 0",
+            "mob_griefing false",
+            "spawn_wandering_traders false",
+            "spawn_patrols false",
+            "show_advancement_messages false",
+            "send_command_feedback true",
+            "spawn_phantoms false",
+            "players_sleeping_percentage 200");
 
     public static final int SPAWN_X = 0;
     public static final int SPAWN_Y = 4;
