@@ -171,6 +171,15 @@ log "Phase 4: golden screenshot of the world"
 "$CLI" --project "$CONSUMER" wait --ticks 20
 "$CLI" --project "$CONSUMER" teleport 0 5 6 --yaw 180 --pitch 20
 "$CLI" --project "$CONSUMER" wait --ticks 10
+# Advancement announcements are off, and command feedback never reaches chat because commands run
+# through a collecting source -- but the server can still put a line there, and a chat line stays up
+# for ten seconds. `compare --update` and the `compare` after it are two captures a moment apart, so
+# anything transient in that window makes a golden fail against itself: seen once on 26 as
+# "ClientDevBridge has made the advancement [Diamonds!]" landing between the two. Two hundred ticks
+# is one chat lifetime, which is what it takes for the frame to be genuinely still.
+"$CLI" --project "$CONSUMER" command "gamerule announceAdvancements" | grep -q false \
+  || fail "the determinism setup should have turned advancement announcements off"
+"$CLI" --project "$CONSUMER" wait --ticks 200
 "$CLI" --project "$CONSUMER" compare e2e-scene --update
 "$CLI" --project "$CONSUMER" compare e2e-scene || fail "a golden image did not match itself"
 # And confirm the comparison can actually fail, so a passing run means something.
