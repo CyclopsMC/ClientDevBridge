@@ -6,6 +6,9 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 12 — what Everlasting Abilities found
 
+- `input.scroll` with no screen open changes the hotbar slot instead of failing. Scrolling in the
+  world has exactly one meaning and it was the one case the command refused.
+
 - Item components are serialized through their registered codecs, the way `/data get` does. A mod's
   own data component used to render as `Object.toString` — a class name and an identity hash — which
   carries no information, and asserting on mod state is most of what a mod agent wants to do.

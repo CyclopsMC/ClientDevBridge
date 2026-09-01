@@ -124,6 +124,17 @@ bare `"3"` cannot reach because it parses as a key code first.
 rather than queueing a click for the next tick, and it replies with what is now held. The selection
 reaches the server lazily, right before the next interaction, exactly as it does for a player.
 
+`input.scroll` with no screen open changes the hotbar slot rather than failing. Scrolling is how a
+player changes slot, so refusing it there refused the only meaning scrolling has in the world. The
+arithmetic matches vanilla's -- up moves the selection left, and it wraps -- and is done here rather
+than through the game's own `swapPaint`, which exists on 1.21 and not on 26 while the selection
+itself is reachable on every branch.
+
+Scrolling and dragging inside a screen go through `mouseScrolled` and a
+`mouseClicked` / `mouseDragged` x N / `mouseReleased` sequence, so a screen that tracks its own drag
+state -- a scrollbar -- follows them. The creative inventory's list and scrollbar are covered by the
+end-to-end suite on both loaders.
+
 `input.mouseClick` with **no screen open** is an in-world click: button 0 attacks, button 1 uses.
 That branch queues a key binding rather than acting, so its reply is also sent five ticks later —
 without the wait it reported `screen: none` at the moment a click opened one, which is
