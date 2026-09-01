@@ -171,6 +171,15 @@ log "Phase 4: golden screenshot of the world"
 "$CLI" --project "$CONSUMER" wait --ticks 20
 "$CLI" --project "$CONSUMER" teleport 0 5 6 --yaw 180 --pitch 20
 "$CLI" --project "$CONSUMER" wait --ticks 10
+# Advancement announcements are off, and command feedback never reaches chat because commands run
+# through a collecting source -- but the server can still put a line there, and a chat line stays up
+# for ten seconds. `compare --update` and the `compare` after it are two captures a moment apart, so
+# anything transient in that window makes a golden fail against itself: seen once on 26 as
+# "ClientDevBridge has made the advancement [Diamonds!]" landing between the two. Two hundred ticks
+# is one chat lifetime, which is what it takes for the frame to be genuinely still.
+"$CLI" --project "$CONSUMER" command "gamerule announceAdvancements" | grep -q false \
+  || fail "the determinism setup should have turned advancement announcements off"
+"$CLI" --project "$CONSUMER" wait --ticks 200
 "$CLI" --project "$CONSUMER" compare e2e-scene --update
 "$CLI" --project "$CONSUMER" compare e2e-scene || fail "a golden image did not match itself"
 # And confirm the comparison can actually fail, so a passing run means something.
@@ -479,6 +488,50 @@ OFFSCREEN="$("$CLI" --project "$CONSUMER" screenshot --mouse 9999,9999 2>&1 || t
 grep -qi "outside\|off.screen\|must be" <<<"$OFFSCREEN" \
   || fail "screenshot --mouse off screen should be refused, but said: $OFFSCREEN"
 echo "the cursor can be pinned before a capture"
+
+log "Phase 5c: scrolling and dragging inside a scrollable screen"
+# The creative inventory is the standard scrollable screen: a long list, a scrollbar, and a search
+# tab. Both worked already; nothing tested them, so a change to how synthetic input reaches a
+# screen could have broken either silently.
+"$CLI" --project "$CONSUMER" close-screen >/dev/null 2>&1 || true
+"$CLI" --project "$CONSUMER" command "gamemode creative" >/dev/null
+"$CLI" --project "$CONSUMER" key E >/dev/null
+"$CLI" --project "$CONSUMER" wait --screen CreativeModeInventoryScreen --timeout 5000 >/dev/null \
+  || fail "pressing E in creative did not open the creative inventory"
+
+first_creative_slot() {
+  "$CLI" --project "$CONSUMER" --json snapshot \
+    | python3 -c "import json,sys; print(next(s['item'] for s in json.load(sys.stdin)['container']['slots'] if s['index'] == 0))"
+}
+TOP="$(first_creative_slot)"
+# The wheel moves the list.
+"$CLI" --project "$CONSUMER" scroll --at 200,110 --dy -3 >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 2 >/dev/null
+SCROLLED="$(first_creative_slot)"
+[[ "$SCROLLED" != "$TOP" ]] \
+  || fail "scrolling the creative list did not move it (still $TOP)"
+
+# And the scrollbar can be dragged, which is a click, a run of drags and a release -- a screen that
+# tracks its own drag state only follows if all three arrive.
+"$CLI" --project "$CONSUMER" drag --from 298,72 --to 298,180 >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 2 >/dev/null
+DRAGGED="$(first_creative_slot)"
+[[ "$DRAGGED" != "$SCROLLED" && "$DRAGGED" != "$TOP" ]] \
+  || fail "dragging the creative scrollbar did not move the list (still $DRAGGED)"
+echo "the wheel and the scrollbar both move a scrollable list"
+
+# With no screen open, scrolling is how a player changes hotbar slot.
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+"$CLI" --project "$CONSUMER" hold 0 >/dev/null
+"$CLI" --project "$CONSUMER" scroll --dy -1 >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 2 >/dev/null
+"$CLI" --project "$CONSUMER" inventory | grep -q "selected hotbar slot 1" \
+  || fail "scrolling with no screen open should move the hotbar selection right"
+"$CLI" --project "$CONSUMER" scroll --dy 1 >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 2 >/dev/null
+"$CLI" --project "$CONSUMER" inventory | grep -q "selected hotbar slot 0" \
+  || fail "scrolling up should move the hotbar selection back left"
+echo "scrolling with no screen open changes the hotbar slot"
 
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null

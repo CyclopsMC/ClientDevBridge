@@ -221,7 +221,13 @@ public class InputControl {
     }
 
     public static void scroll(double x, double y, double deltaX, double deltaY) {
-        Screen screen = requireScreenFor("scrolling");
+        Screen screen = ClientState.screen();
+        // With no screen open, scrolling is how a player changes hotbar slot -- refusing it was
+        // refusing the only thing scrolling does in the world.
+        if (screen == null) {
+            PlayerControl.scrollHotbar(deltaY);
+            return;
+        }
         mouseMove(x, y);
         screen.mouseScrolled(x, y, deltaX, deltaY);
     }
