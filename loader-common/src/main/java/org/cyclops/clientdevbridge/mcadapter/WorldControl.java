@@ -220,8 +220,13 @@ public class WorldControl {
      * Run once the world has finished loading.
      */
     public static void applyDeterminism(@Nullable String extraSetup) {
+        // Checked, not fire-and-forget. Minecraft 26 renamed every game rule -- camelCase became
+        // snake_case, and announceAdvancements became show_advancement_messages -- so this whole
+        // list failed silently on those branches for their entire life: the test world kept its
+        // day/night cycle, its weather and its random ticks, and golden images passed on luck.
+        // A rule that does not apply is a broken test world, so it is worth the whole reset.
         for (String rule : DETERMINISM_GAMERULES) {
-            CommandRunner.run("gamerule " + rule);
+            CommandRunner.runChecked("gamerule " + rule);
         }
         CommandRunner.run("time set noon");
         CommandRunner.run("weather clear");
