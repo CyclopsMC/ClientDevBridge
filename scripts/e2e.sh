@@ -177,8 +177,9 @@ log "Phase 4: golden screenshot of the world"
 # anything transient in that window makes a golden fail against itself: seen once on 26 as
 # "ClientDevBridge has made the advancement [Diamonds!]" landing between the two. Two hundred ticks
 # is one chat lifetime, which is what it takes for the frame to be genuinely still.
-"$CLI" --project "$CONSUMER" command "gamerule announceAdvancements" | grep -q false \
-  || fail "the determinism setup should have turned advancement announcements off"
+# No assertion on a specific rule here: the names differ between branches -- 26 renamed every one --
+# and `world-reset` above already proves the whole set applied, because applyDeterminism checks each
+# rule and fails the reset on any that does not.
 "$CLI" --project "$CONSUMER" wait --ticks 200
 "$CLI" --project "$CONSUMER" compare e2e-scene --update
 "$CLI" --project "$CONSUMER" compare e2e-scene || fail "a golden image did not match itself"
