@@ -134,6 +134,27 @@ public class PlayerControl {
         ClientState.requirePlayer().getInventory().selected = slot;
     }
 
+    /**
+     * Which hotbar slot is selected. The one place the field is read, so that the branches where it
+     * is a getter instead differ in exactly one line rather than in every caller.
+     */
+    public static int selectedHotbarSlot() {
+        return ClientState.requirePlayer().getInventory().selected;
+    }
+
+    /**
+     * Scrolling with no screen open, which is how a player changes hotbar slot.
+     *
+     * Matches vanilla's own arithmetic: scrolling up moves the selection left, and it wraps. Doing
+     * it here rather than calling the game's {@code swapPaint} keeps this off the list of things
+     * that drift -- that method exists on 1.21 and not on 26, while the selection itself is
+     * reachable on every branch.
+     */
+    public static void scrollHotbar(double delta) {
+        int step = (int) Math.signum(delta);
+        selectHotbarSlot(Math.floorMod(selectedHotbarSlot() - step, 9));
+    }
+
     public static JsonObject inventory() {
         LocalPlayer player = ClientState.requirePlayer();
         JsonArray slots = new JsonArray();
@@ -143,7 +164,7 @@ public class PlayerControl {
         }
         JsonObject result = Json.object();
         result.add("slots", slots);
-        result.addProperty("selected", player.getInventory().selected);
+        result.addProperty("selected", selectedHotbarSlot());
         result.add("carried", describeStack(-1, player.containerMenu.getCarried()));
         return result;
     }
