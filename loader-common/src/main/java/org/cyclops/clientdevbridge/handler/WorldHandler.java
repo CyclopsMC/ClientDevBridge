@@ -117,6 +117,9 @@ public class WorldHandler {
                 result.addProperty("success", outcome.success());
                 result.addProperty("value", outcome.value());
                 result.add("output", Json.arrayOfStrings(outcome.output()));
+                // Which thread actually ran it. Commands belong to the server thread, and running
+                // them anywhere else races the tick.
+                result.addProperty("thread", outcome.thread());
                 return result;
             });
         });

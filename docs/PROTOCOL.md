@@ -100,7 +100,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `world.load` | `{ name }` | `{ world }` |
 | `world.leave` | – | `{}` |
 | `world.list` | – | `{ worlds: [string] }` |
-| `world.command` | `{ command }` | `{ success, value, output: [string] }` |
+| `world.command` | `{ command }` | `{ success, value, output: [string], thread }` |
 | `world.entity` | `{ selector?, path? }` | `{ selector, path, success, output, value }` |
 | `world.block` | `{ x, y, z, nbt? }` | `{ block, pos, state, properties, blockEntity? }` |
 | `world.break` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z], timeoutTicks? }` | `{ pos, face, broken, predictedBroken, ticks, blockBefore, blockAfter, heldAfter, drops, collected }` |
@@ -279,6 +279,17 @@ wrenching all leave no screen behind, so `use` reports what changed instead of f
 part changes neither its block id nor its state. It is `SUCCESS` when the block handled the click
 and `PASS` when it did not — the finer distinctions Minecraft draws internally differ between
 versions and are deliberately not exposed, since one CLI release drives every branch.
+
+Commands run on the **server thread**, not on the thread the request arrived on. Minecraft's
+command dispatch mutates world state, and running it from the client thread races the tick: it
+produced a `ConcurrentModificationException` inside a mod's collision code that took the client
+down, and left a following command reading blocks that had been placed but not finished. `thread`
+is in the reply so that invariant is checkable from outside rather than only visible as a
+`[Render thread/ERROR] [minecraft/Commands]` line in a log after something has already broken.
+
+`CommandRunner.onServerThread` groups a sequence into one server task, so the server does not tick
+between the commands in it. The determinism setup uses it: otherwise the world ticks a few times
+while half its game rules are still the defaults.
 
 `world.entity` is `world.block` for things that are not blocks. It runs through the same command
 source `/data get` does, because abilities, attributes and capability data are on the **server**
