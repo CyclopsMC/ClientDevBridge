@@ -557,6 +557,24 @@ if "$CLI" --project "$CONSUMER" screenshot --name toasts-suppressed-2 --region "
 fi
 echo "toasts stay off by default, so a golden image is not at their mercy"
 
+log "Phase 5e: commands run on the server thread"
+# Commands belong to the server thread. Running them wherever the caller happened to be raced the
+# tick: a mod's collision code threw ConcurrentModificationException mid-tick and took the client
+# with it, and a command reading blocks straight back saw them half-built. The only evidence was a
+# "[Render thread/ERROR] [minecraft/Commands]" line in a log after the crash, so the reply names
+# the thread and this pins it.
+THREAD="$("$CLI" --project "$CONSUMER" --json command "time set noon" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['thread'])")"
+[[ "$THREAD" == *Server* ]] || fail "commands ran on '$THREAD' rather than the server thread"
+[[ "$THREAD" != *Render* ]] || fail "commands ran on the render thread, which races the tick"
+
+# The symptom that bug produced: a block placed by one command not being there for the next.
+"$CLI" --project "$CONSUMER" command "setblock 3 4 3 minecraft:chest[facing=north]" >/dev/null
+"$CLI" --project "$CONSUMER" command "data get block 3 4 3" >/dev/null \
+  || fail "a block placed by one command was not visible to the next"
+"$CLI" --project "$CONSUMER" command "setblock 3 4 3 minecraft:air" >/dev/null
+echo "commands run on $THREAD, and a placement is visible to the command after it"
+
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null
 

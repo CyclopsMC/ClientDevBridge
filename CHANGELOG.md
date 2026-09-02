@@ -6,6 +6,13 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 13 — smaller things agents asked for
 
+- **Commands run on the server thread.** They were running on whichever thread called them, which
+  is the client thread for every caller here — a data race against the tick. It crashed a client
+  through a `ConcurrentModificationException` in a mod's collision code, and made a command that
+  read blocks back see them half-built ("No part state for part … Part container: null" for cables
+  that had in fact been placed). `world.command` now reports the `thread` it ran on, because the
+  only evidence of the old behaviour was a `[Render thread/ERROR]` line in a log after a crash.
+
 - `hello` reports `toastsEnabled`. Toasts are suppressed so screenshots stay reproducible, and the
   CLI can now ask for them back — but a suppressed toast looks exactly like one that never fired,
   so the flag's state has to be readable rather than assumed.
