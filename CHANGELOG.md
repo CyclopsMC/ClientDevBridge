@@ -4,6 +4,12 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 13 — smaller things agents asked for
+
+- `hello` reports `toastsEnabled`. Toasts are suppressed so screenshots stay reproducible, and the
+  CLI can now ask for them back — but a suppressed toast looks exactly like one that never fired,
+  so the flag's state has to be readable rather than assumed.
+
 ### Phase 12 — what Everlasting Abilities found
 
 - `input.scroll` with no screen open changes the hotbar slot instead of failing. Scrolling in the

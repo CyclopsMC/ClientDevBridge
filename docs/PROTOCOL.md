@@ -299,6 +299,11 @@ where there is no block entity. They are the field that catches a machine being 
 wrench turning a side, a variable card being written, a tank filling — none of which touch the
 block id or the block state, and all of which otherwise read as "nothing happened".
 
+`hello` reports `toastsEnabled` beside `evalEnabled`. Toasts are cleared every tick unless
+`-Dclientdevbridge.toasts=true` (the CLI's `start --toasts`) is set, because one fading across a
+frame makes that frame unreproducible — and a suppressed toast is indistinguishable from a toast
+that never fired, which is why the flag's state is reported rather than assumed.
+
 `eval` and `wait.for expr` need `-Dclientdevbridge.eval=true` **and** a Groovy engine on the
 classpath. The mod reaches it through `javax.script`, so it is genuinely optional; the CLI's init
 script adds `org.apache.groovy:groovy-jsr223` alongside the mod.
