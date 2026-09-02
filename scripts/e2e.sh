@@ -548,10 +548,14 @@ log "Phase 5d: toasts are suppressed, and can be turned back on"
 # leaves the frame untouched. Granting it is the event; the screen not changing is the assertion.
 "$CLI" --project "$CONSUMER" command "advancement grant @s only minecraft:story/mine_stone" >/dev/null
 "$CLI" --project "$CONSUMER" wait --ticks 5 >/dev/null
-SUPPRESSED="$("$CLI" --project "$CONSUMER" screenshot --name toasts-suppressed-2 --diff \
-  "$CONSUMER/.clientdevbridge/screenshots/toasts-suppressed.png" 2>&1 || true)"
-grep -qi "matches\|too similar\|0\.0" <<<"$SUPPRESSED" \
-  || fail "granting an advancement changed the screen, so toasts are not suppressed: $SUPPRESSED"
+# --diff asserts the images *differ*, so this asserts the opposite by expecting it to fail. The
+# threshold separates a toast from noise rather than demanding an identical frame: a toast covers
+# roughly a tenth of the window, while two captures of a still scene differ by a fraction of a
+# percent anyway (0.14% seen on 26).
+if "$CLI" --project "$CONSUMER" screenshot --name toasts-suppressed-2 --min-diff 1.0 --diff \
+    "$CONSUMER/.clientdevbridge/screenshots/toasts-suppressed.png" >/dev/null 2>&1; then
+  fail "the frame changed by more than 1% when an advancement was earned, so a toast rendered"
+fi
 echo "toasts stay off by default, so a golden image is not at their mercy"
 
 log "logs"
