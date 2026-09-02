@@ -223,6 +223,11 @@ public class WorldControl {
      * Run once the world has finished loading.
      */
     public static void applyDeterminism(@Nullable String extraSetup) {
+        // One hop to the server thread for the whole sequence rather than one per command.
+        CommandRunner.onServerThread(() -> applyDeterminismOnServerThread(extraSetup));
+    }
+
+    private static void applyDeterminismOnServerThread(@Nullable String extraSetup) {
         // Checked, not fire-and-forget. Minecraft 26 renamed every game rule -- camelCase became
         // snake_case, and announceAdvancements became show_advancement_messages -- so this whole
         // list failed silently on those branches for their entire life: the test world kept its
