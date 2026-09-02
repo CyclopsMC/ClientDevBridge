@@ -127,6 +127,10 @@ public class ClientDevBridge {
         params.addProperty("loader", McAdapter.hooks().getLoaderName());
         params.addProperty("clientDevBridgeVersion", McAdapter.hooks().getModVersion());
         params.addProperty("evalEnabled", config.isEvalEnabled());
+        // Reported for the same reason as eval: a caller that asked for toasts has no other way to
+        // confirm the property reached the client, and a suppressed toast looks exactly like a
+        // toast that never fired.
+        params.addProperty("toastsEnabled", config.areToastsEnabled());
         // Which project this client was launched for, so a CLI that finds an unexpected client on
         // the port can say whose it is rather than calling every one of them an orphan.
         params.addProperty("projectDir",

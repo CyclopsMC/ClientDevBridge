@@ -534,6 +534,26 @@ echo "the wheel and the scrollbar both move a scrollable list"
   || fail "scrolling up should move the hotbar selection back left"
 echo "scrolling with no screen open changes the hotbar slot"
 
+log "Phase 5d: toasts are suppressed, and can be turned back on"
+# The suppression is what keeps a golden image reproducible -- a toast fades over several seconds --
+# but it left no way to look at a toast at all, which matters for a mod whose feedback *is* one.
+# Both halves are pinned: the default must stay quiet, and the flag must actually work.
+"$CLI" --project "$CONSUMER" close-screen >/dev/null 2>&1 || true
+# Revoked first: this suite mines cobblestone earlier on, so the advancement is already earned by
+# now and granting it again reports zero granted -- a failed command, which aborts the run.
+"$CLI" --project "$CONSUMER" command "advancement revoke @s only minecraft:story/mine_stone" >/dev/null 2>&1 || true
+"$CLI" --project "$CONSUMER" wait --ticks 5 >/dev/null
+"$CLI" --project "$CONSUMER" screenshot --name toasts-suppressed >/dev/null
+# 'Advancement Made!' is drawn in the top-right corner, so with toasts off an earned advancement
+# leaves the frame untouched. Granting it is the event; the screen not changing is the assertion.
+"$CLI" --project "$CONSUMER" command "advancement grant @s only minecraft:story/mine_stone" >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 5 >/dev/null
+SUPPRESSED="$("$CLI" --project "$CONSUMER" screenshot --name toasts-suppressed-2 --diff \
+  "$CONSUMER/.clientdevbridge/screenshots/toasts-suppressed.png" 2>&1 || true)"
+grep -qi "matches\|too similar\|0\.0" <<<"$SUPPRESSED" \
+  || fail "granting an advancement changed the screen, so toasts are not suppressed: $SUPPRESSED"
+echo "toasts stay off by default, so a golden image is not at their mercy"
+
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null
 
