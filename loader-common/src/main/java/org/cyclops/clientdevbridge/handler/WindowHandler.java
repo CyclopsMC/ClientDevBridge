@@ -12,6 +12,9 @@ import org.cyclops.clientdevbridge.protocol.Params;
 /**
  * {@code window.resize}: pin the framebuffer size and GUI scale, for reproducible screenshots.
  *
+ * The size is in framebuffer pixels, not in the screen coordinates GLFW sizes a window in; see
+ * {@link WindowControl#applySize}, which is where the two part company on a scaled display.
+ *
  * @author rubensworks
  */
 public class WindowHandler {
@@ -33,10 +36,14 @@ public class WindowHandler {
             // from 640x360 to 854x480 at scale 2 was rejected as "must be between 0 and 1", after
             // the resize itself had already been applied, so the command both worked and failed.
             return ClientThread.submit(() -> {
-                        int[] before = WindowControl.screenSize();
+                        int[] before = WindowControl.pixelSize();
                         WindowControl.applySize(width, height);
                         return before;
                     })
+                    // Compared in framebuffer pixels, the space the request is in. Comparing the
+                    // window's screen size against it took "already 854x480" for granted on a
+                    // display that scales windows, where a 854x480 window is a 1708x960
+                    // framebuffer, and skipped the wait for a resize that was about to happen.
                     .thenCompose(before -> before[0] == width && before[1] == height
                             // Already the requested size, so there is no edge to wait for.
                             ? java.util.concurrent.CompletableFuture.completedFuture(null)
