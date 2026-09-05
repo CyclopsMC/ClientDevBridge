@@ -133,6 +133,10 @@ Screenshot comparison only works if the client holds still. What is already hand
 - Toasts are suppressed every tick — they fade over seconds and would otherwise poison any
   screenshot taken near one.
 - `player.teleport` waits for the position to round-trip before returning.
+- Sizes are in framebuffer pixels everywhere, including `window.resize`, and are converted into the
+  screen coordinates GLFW wants. A display that scales windows -- every Retina Mac -- otherwise
+  renders the same client at twice the size a headless runner does, which is the one determinism
+  bug that survives a golden image: both machines are internally consistent and disagree.
 
 What is **not** handled, deliberately: animated block textures (lava, fire, water, portals) advance
 every frame and no game rule stops them. A golden image containing one needs `--threshold` or a
@@ -167,7 +171,9 @@ the newest build that this branch's NeoForge can actually load, and skips rather
 there is none or Modrinth is unreachable.
 
 **Both must pass before committing.** Run the loader you did not touch too: the two have diverged
-in behaviour before, and only the end-to-end run catches it.
+in behaviour before, and only the end-to-end run catches it. They can run at the same time: neither
+the client's port nor the scratch files a suite captures into are shared any more, and the CLI
+hands each client the first free port.
 
 ## The protocol is a contract
 

@@ -20,7 +20,16 @@ LOADER="${1:-neoforge}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FLOPPER_BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
 FLOPPER_DIR="$ROOT/e2e/flopper"
-PORT="${CDB_PORT:-25599}"
+# A port only when one was asked for. Left to itself the CLI takes the first free one, which is
+# what lets the neoforge suite and the fabric suite -- the guide says to run both -- be in flight
+# at the same time without being told about each other.
+PORT_ARGS=()
+if [[ -n "${CDB_PORT:-}" ]]; then
+  PORT_ARGS=(--port "$CDB_PORT")
+fi
+# One scratch directory per run, for the same reason: two suites sharing "$RUNTMP"/cdb-snapshot.txt
+# read each other's output and fail on findings that belong to the other one.
+RUNTMP="$(mktemp -d "${TMPDIR:-/tmp}/cdb-e2e-XXXXXX")"
 
 cd "$ROOT"
 
@@ -75,6 +84,7 @@ log "Publishing the mod to mavenLocal"
 
 cleanup() {
   "$CLI" --project "$CONSUMER" stop >/dev/null 2>&1 || true
+  rm -rf "$RUNTMP"
 }
 trap cleanup EXIT
 
@@ -86,7 +96,7 @@ log "doctor"
 "$CLI" --project "$CONSUMER" doctor --loader "$LOADER" --no-network || fail "doctor reported a problem"
 
 log "start ($LOADER, headless)"
-"$CLI" --project "$CONSUMER" start --loader "$LOADER" --port "$PORT" --timeout 900 \
+"$CLI" --project "$CONSUMER" start --loader "$LOADER" ${PORT_ARGS[@]+"${PORT_ARGS[@]}"} --timeout 900 \
   || fail "the client did not come up"
 
 log "status"
@@ -123,9 +133,16 @@ else
 fi
 
 log "Phase 4: pin the window for reproducible screenshots"
-"$CLI" --project "$CONSUMER" resize --width 854 --height 480 --gui-scale 2 | tee /tmp/cdb-resize.txt
-grep -q "854x480px" /tmp/cdb-resize.txt || fail "the window did not resize to 854x480"
-grep -q "scale 2" /tmp/cdb-resize.txt || fail "the GUI scale was not pinned to 2"
+"$CLI" --project "$CONSUMER" resize --width 854 --height 480 --gui-scale 2 | tee "$RUNTMP"/cdb-resize.txt
+grep -q "854x480px" "$RUNTMP"/cdb-resize.txt || fail "the window did not resize to 854x480"
+grep -q "scale 2" "$RUNTMP"/cdb-resize.txt || fail "the GUI scale was not pinned to 2"
+# What the resize reports is the framebuffer, and this is the capture that proves it was not the
+# window: on a display that scales windows -- any Retina Mac, Windows above 100% -- there are more
+# pixels behind an 854x480 window than 854x480, and a client sized by the window renders every
+# screenshot, region and GUI coordinate at twice the size a headless runner produces.
+PINNED_SHOT="$("$CLI" --project "$CONSUMER" screenshot --name e2e-pinned-size)"
+grep -q "^854x480 px" <<< "$PINNED_SHOT" \
+  || fail "the pinned window did not capture 854x480 pixels, but: $(head -1 <<< "$PINNED_SHOT")"
 
 log "Phase 2: create a world and place blocks"
 "$CLI" --project "$CONSUMER" world-reset
@@ -138,20 +155,20 @@ log "Phase 2: create a world and place blocks"
 log "Phase 3: open and inspect the crafting GUI"
 "$CLI" --project "$CONSUMER" open-gui 0 4 2
 "$CLI" --project "$CONSUMER" wait --screen CraftingScreen --timeout 5000 || fail "the crafting screen did not open"
-"$CLI" --project "$CONSUMER" snapshot | tee /tmp/cdb-snapshot.txt
-grep -q "CraftingScreen" /tmp/cdb-snapshot.txt || fail "the snapshot does not report a CraftingScreen"
-grep -q "46 slots" /tmp/cdb-snapshot.txt || fail "the snapshot does not report the 46 CraftingMenu slots"
-grep -q "minecraft:diamond x5" /tmp/cdb-snapshot.txt || fail "the snapshot does not show the given diamonds"
+"$CLI" --project "$CONSUMER" snapshot | tee "$RUNTMP"/cdb-snapshot.txt
+grep -q "CraftingScreen" "$RUNTMP"/cdb-snapshot.txt || fail "the snapshot does not report a CraftingScreen"
+grep -q "46 slots" "$RUNTMP"/cdb-snapshot.txt || fail "the snapshot does not report the 46 CraftingMenu slots"
+grep -q "minecraft:diamond x5" "$RUNTMP"/cdb-snapshot.txt || fail "the snapshot does not show the given diamonds"
 
 log "Phase 3: tooltips"
-"$CLI" --project "$CONSUMER" tooltip --at "$(grep -o 'minecraft:diamond x5 @([0-9]*,[0-9]*)' /tmp/cdb-snapshot.txt | grep -o '[0-9]*,[0-9]*')" \
+"$CLI" --project "$CONSUMER" tooltip --at "$(grep -o 'minecraft:diamond x5 @([0-9]*,[0-9]*)' "$RUNTMP"/cdb-snapshot.txt | grep -o '[0-9]*,[0-9]*')" \
   | grep -qi diamond || fail "no diamond tooltip"
 
 log "Phase 3: click a widget by path and confirm the screen reacted"
-BEFORE_LEFT="$(grep -o 'at ([0-9]*,[0-9]*)' /tmp/cdb-snapshot.txt | head -1)"
+BEFORE_LEFT="$(grep -o 'at ([0-9]*,[0-9]*)' "$RUNTMP"/cdb-snapshot.txt | head -1)"
 "$CLI" --project "$CONSUMER" click --widget "/root/children[0]"
-"$CLI" --project "$CONSUMER" snapshot > /tmp/cdb-snapshot2.txt
-AFTER_LEFT="$(grep -o 'at ([0-9]*,[0-9]*)' /tmp/cdb-snapshot2.txt | head -1)"
+"$CLI" --project "$CONSUMER" snapshot > "$RUNTMP"/cdb-snapshot2.txt
+AFTER_LEFT="$(grep -o 'at ([0-9]*,[0-9]*)' "$RUNTMP"/cdb-snapshot2.txt | head -1)"
 [[ "$BEFORE_LEFT" != "$AFTER_LEFT" ]] || fail "clicking the recipe-book button changed nothing (was $BEFORE_LEFT)"
 echo "container moved $BEFORE_LEFT -> $AFTER_LEFT"
 
@@ -201,9 +218,9 @@ log "Phase 3: aiming an interaction at a point on a block"
 "$CLI" --project "$CONSUMER" use 4 4 2 --at 4.2,4.8,3
 "$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:book 6" >/dev/null
 "$CLI" --project "$CONSUMER" use 4 4 2 --at 4.8,4.2,3
-"$CLI" --project "$CONSUMER" block 4 4 2 | tee /tmp/cdb-shelf.txt
-TOP="$(grep -oE 'slot_[012]_occupied=true' /tmp/cdb-shelf.txt | wc -l)"
-BOTTOM="$(grep -oE 'slot_[345]_occupied=true' /tmp/cdb-shelf.txt | wc -l)"
+"$CLI" --project "$CONSUMER" block 4 4 2 | tee "$RUNTMP"/cdb-shelf.txt
+TOP="$(grep -oE 'slot_[012]_occupied=true' "$RUNTMP"/cdb-shelf.txt | wc -l)"
+BOTTOM="$(grep -oE 'slot_[345]_occupied=true' "$RUNTMP"/cdb-shelf.txt | wc -l)"
 [[ "$TOP" -ge 1 && "$BOTTOM" -ge 1 ]] \
   || fail "aiming at two different points filled $TOP top and $BOTTOM bottom slots; --at is not routing the click"
 echo "two different aim points reached two different rows"
@@ -263,8 +280,8 @@ log "Phase 3: using the item in your hand"
 # Aimed at the sky: a right-click at a block interacts with the block and never reaches the item,
 # which is what a player gets and the likeliest reason an item looks like it did nothing.
 "$CLI" --project "$CONSUMER" look --pitch -90 >/dev/null
-"$CLI" --project "$CONSUMER" use-item --wait-screen | tee /tmp/cdb-use-item.txt
-grep -q "BookEditScreen" /tmp/cdb-use-item.txt || fail "use-item did not open the book"
+"$CLI" --project "$CONSUMER" use-item --wait-screen | tee "$RUNTMP"/cdb-use-item.txt
+grep -q "BookEditScreen" "$RUNTMP"/cdb-use-item.txt || fail "use-item did not open the book"
 # The other side of --wait-screen: an item that opens nothing has to fail, after waiting, rather
 # than passing. (No vanilla item opens a *server* container on use, so that half -- the one that
 # made the flag look broken against Everlasting Abilities -- is only covered by hand.)
@@ -313,16 +330,16 @@ log "Phase 3: mining a block in survival, and picking up what it drops"
 "$CLI" --project "$CONSUMER" setblock 0 4 2 minecraft:cobblestone >/dev/null
 "$CLI" --project "$CONSUMER" command "gamemode survival" >/dev/null
 "$CLI" --project "$CONSUMER" teleport 0 4 0 >/dev/null
-"$CLI" --project "$CONSUMER" break 0 4 2 | tee /tmp/cdb-break.txt
+"$CLI" --project "$CONSUMER" break 0 4 2 | tee "$RUNTMP"/cdb-break.txt
 # Either outcome counts, because which one happens is a race the caller does not control: a drop
 # becomes collectable ten ticks after it spawns, which is exactly the settle the mod waits out, so
 # mining within arm's reach ends with the item either on the ground or already in hand. Demanding
 # the first is what failed on CI while passing here.
-grep -qE "(dropped|picked up) minecraft:cobblestone" /tmp/cdb-break.txt \
+grep -qE "(dropped|picked up) minecraft:cobblestone" "$RUNTMP"/cdb-break.txt \
   || fail "breaking the cobblestone produced neither a drop nor a pickup"
 # The tick count is what says this was mining rather than the block being removed: a diamond
 # pickaxe takes a handful of ticks on cobblestone, and zero would mean something else happened.
-BROKE_IN="$(grep -oE 'in [0-9]+ ticks' /tmp/cdb-break.txt | grep -oE '[0-9]+')"
+BROKE_IN="$(grep -oE 'in [0-9]+ ticks' "$RUNTMP"/cdb-break.txt | grep -oE '[0-9]+')"
 [[ "$BROKE_IN" -ge 2 ]] || fail "the block broke in $BROKE_IN ticks, which is not mining"
 # And a diamond pickaxe is fast. Bare-handed cobblestone takes about two hundred ticks and drops
 # nothing, so a large number here means the tool never reached the player's hand.
@@ -330,7 +347,7 @@ BROKE_IN="$(grep -oE 'in [0-9]+ ticks' /tmp/cdb-break.txt | grep -oE '[0-9]+')"
 # The drop is thrown, so it lands a block or two away -- which is why its position is reported.
 # When it was collected during the settle there is no position and nothing to walk to, and the
 # assertion that matters -- the cobblestone reached the player -- is the same either way.
-DROP_AT="$(grep -oE 'at [-0-9.]+, [-0-9.]+, [-0-9.]+' /tmp/cdb-break.txt | sed 's/at //')"
+DROP_AT="$(grep -oE 'at [-0-9.]+, [-0-9.]+, [-0-9.]+' "$RUNTMP"/cdb-break.txt | sed 's/at //')"
 if [[ -n "$DROP_AT" ]]; then
   "$CLI" --project "$CONSUMER" walk-to "$(cut -d, -f1 <<<"$DROP_AT")" "$(cut -d, -f3 <<<"$DROP_AT")"
   HOW="walked to the drop and picked it up"
@@ -379,8 +396,8 @@ echo "ATTACK, USE and the mouse buttons can all be held"
 log "Phase 2: a teleport reports where the player stays, not where they were dropped"
 # The arrival condition used to be satisfied while the player was still falling, so the reply
 # described a position they held for one tick and every screenshot after it was of somewhere else.
-"$CLI" --project "$CONSUMER" teleport 0 12 0 | tee /tmp/cdb-tp.txt
-LANDED="$(grep -oE 'Player at [-0-9.]+, [-0-9.]+' /tmp/cdb-tp.txt | grep -oE '[-0-9.]+$')"
+"$CLI" --project "$CONSUMER" teleport 0 12 0 | tee "$RUNTMP"/cdb-tp.txt
+LANDED="$(grep -oE 'Player at [-0-9.]+, [-0-9.]+' "$RUNTMP"/cdb-tp.txt | grep -oE '[-0-9.]+$')"
 "$CLI" --project "$CONSUMER" eval "Math.abs(player.getY() - $LANDED) < 0.5" | grep -q true \
   || fail "teleport reported y=$LANDED but the player is somewhere else a moment later"
 echo "the reported position is the one the player keeps"

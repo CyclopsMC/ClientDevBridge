@@ -6,6 +6,22 @@ All notable changes to ClientDevBridge are documented here.
 
 ### Phase 13 — smaller things agents asked for
 
+- **The end-to-end suites can run at the same time.** `scripts/e2e.sh` pinned the client to port
+  25599 and both suites captured output into fixed `/tmp/cdb-*.txt` paths, so the neoforge run and
+  the fabric run — which the guide says to run both of — could not overlap: one refused to start,
+  and where they did not collide on the port they read each other's captured output. The port is
+  left to the CLI now (`CDB_PORT` still pins one), and each run gets its own scratch directory.
+
+- **`window.resize` sizes the framebuffer, not the window.** It was passing the request straight to
+  GLFW, which sizes a window in screen coordinates — and on a display that scales windows, which is
+  every Retina Mac and Windows above 100%, there are more framebuffer pixels behind a screen
+  coordinate than one. Asking for 854x480 there produced a 1708x960 framebuffer, and with it
+  screenshots, pixel coordinates and a GUI space all twice the size the same command produces on a
+  headless runner: no golden image, region or documented coordinate meant the same thing on the two
+  machines. The window's own two sizes give the factor, so the request is converted before GLFW
+  sees it, and the wait for the resize watches the framebuffer rather than the window. The GUI
+  scale limit is quoted in framebuffer pixels too, which is what it is computed from.
+
 - **Commands run on the server thread.** They were running on whichever thread called them, which
   is the client thread for every caller here — a data race against the tick. It crashed a client
   through a `ConcurrentModificationException` in a mod's collision code, and made a command that

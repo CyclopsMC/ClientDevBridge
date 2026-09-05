@@ -67,7 +67,10 @@ notification is always preferable to a stalled game loop.
 
 - **GUI space** — Minecraft's scaled coordinates. Every widget position in a snapshot is in GUI
   space, and it is the default for every input method, so snapshot output can be fed straight back.
-- **Pixel space** — raw framebuffer pixels. Screenshots are in pixel space.
+- **Pixel space** — raw framebuffer pixels. Screenshots are in pixel space, and so is the size
+  `window.resize` takes. Framebuffer pixels are not the screen coordinates a window manager sizes a
+  window in: on a display that scales windows there are several of the former behind one of the
+  latter, and the bridge converts rather than let the two mean the same number.
 
 Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`, `pixelWidth` and
 `pixelHeight`. Input methods take an optional `space` of `gui` (default) or `pixel`.
