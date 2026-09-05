@@ -1,6 +1,7 @@
 package org.cyclops.clientdevbridge.mcadapter;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.server.MinecraftServer;
@@ -29,6 +30,9 @@ public class Interaction {
 
     /** How long to wait for the server to have the rotation the click depends on. */
     private static final int ROTATION_TIMEOUT_TICKS = 20;
+
+    /** How long to wait for the server to have the sneak state the click depends on. */
+    private static final int SNEAK_TIMEOUT_TICKS = 20;
 
     /**
      * The outcome of a click, in a vocabulary that is the same on every branch.
@@ -137,17 +141,59 @@ public class Interaction {
         return ROTATION_TIMEOUT_TICKS;
     }
 
+    public static int sneakTimeoutTicks() {
+        return SNEAK_TIMEOUT_TICKS;
+    }
+
     /**
      * Holds or releases sneak, which some blocks read to pick a different interaction -- a wrench
      * removing a part rather than configuring it, for one.
      *
-     * The server learns about it from its own packet, so a caller has to let a tick pass before
-     * the click, exactly as with rotation.
+     * This presses the sneak <em>binding</em> rather than writing the player's sneak fields, and
+     * that is the whole point. {@code KeyboardInput.tick()} recomputes the player's input from
+     * {@code options.keyShift} at the top of every tick, and it runs from {@code super.tick()},
+     * before the same tick reaches the code that compares the sneak state against the last one
+     * sent and emits the packet. A field written between ticks is therefore erased before anything
+     * looks at it, and the server is never told -- which is why sneaking used to have no effect on
+     * any block, vanilla ones included. Driving the binding makes vanilla itself send the packet,
+     * on both the 1.21 line (a {@code ServerboundPlayerCommandPacket}) and the 26 line (the sneak
+     * flag inside the player input record).
+     *
+     * The state reaches the server a round trip later, so a caller has to wait for
+     * {@link #serverSeesSneaking} before clicking, exactly as with rotation.
      */
     public static void setSneaking(boolean sneaking) {
-        LocalPlayer player = ClientState.requirePlayer();
-        player.setShiftKeyDown(sneaking);
-        player.input.shiftKeyDown = sneaking;
+        ClientState.requirePlayer();
+        Options options = Minecraft.getInstance().options;
+        if (options.toggleCrouch().get()) {
+            // With "toggle sneak" on, the binding flips on press and ignores release, so the state
+            // is reached by pressing only while it is the wrong one -- setting it directly would
+            // latch sneak on and never let go.
+            if (options.keyShift.isDown() != sneaking) {
+                options.keyShift.setDown(true);
+            }
+        } else {
+            options.keyShift.setDown(sneaking);
+        }
+    }
+
+    /**
+     * Whether the server's copy of the player is sneaking the way the client asked it to.
+     *
+     * The same discipline as {@link #serverSeesRotation}, and for the same reason: a block that
+     * reads sneak reads it on the server, so a click sent before the sneak packet has landed is
+     * evaluated against the old state. Both Minecraft lines end up calling
+     * {@code ServerPlayer.setShiftKeyDown} for it, so this one readback works on either.
+     *
+     * A client with no integrated server cannot check, and reports true rather than blocking
+     * forever; the caller's fixed wait covers that case.
+     */
+    public static boolean serverSeesSneaking(boolean sneaking) {
+        ServerPlayer serverPlayer = serverPlayer();
+        if (serverPlayer == null) {
+            return true;
+        }
+        return serverPlayer.isShiftKeyDown() == sneaking;
     }
 
     public static boolean isSneaking() {

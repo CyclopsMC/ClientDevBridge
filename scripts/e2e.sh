@@ -240,6 +240,39 @@ log "Phase 3: aiming at a face places against that face"
 echo "the torch landed north, and the player stood north to put it there"
 "$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:air" >/dev/null
 
+log "Phase 3: --sneak reaches the server"
+# Sneak is read on the *server* -- a block's use is skipped there when the player is sneaking and
+# holding something -- so a sneak the client keeps to itself does nothing at all. It did nothing at
+# all for a long time: the sneak state used to be written straight onto the player, and
+# KeyboardInput.tick recomputes that from the sneak binding at the top of every tick, before the
+# same tick decides whether to tell the server. The write was erased before anything read it.
+#
+# The assertion is the difference between the two clicks, because either one alone is explainable:
+# a crafting table opens its screen for a plain right-click and places the held block instead for a
+# sneaking one, and only the server can make that choice.
+"$CLI" --project "$CONSUMER" setblock 8 4 2 minecraft:crafting_table
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:stone 64" >/dev/null
+"$CLI" --project "$CONSUMER" use 8 4 2 --face north | tee "$RUNTMP"/cdb-nosneak.txt
+grep -q "CraftingScreen" "$RUNTMP"/cdb-nosneak.txt \
+  || fail "a plain right-click on the crafting table did not open its screen, so the sneak comparison proves nothing"
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+"$CLI" --project "$CONSUMER" block 8 4 1 | grep -q "minecraft:air" \
+  || fail "a plain right-click placed a block, so the sneak comparison proves nothing"
+
+"$CLI" --project "$CONSUMER" use 8 4 2 --face north --sneak | tee "$RUNTMP"/cdb-sneak.txt
+if grep -q "CraftingScreen" "$RUNTMP"/cdb-sneak.txt; then
+  fail "--sneak still opened the crafting screen, so the sneak never reached the server"
+fi
+"$CLI" --project "$CONSUMER" block 8 4 1 | grep -q "minecraft:stone" \
+  || fail "--sneak did not place the held block against the crafting table"
+# And it is released again on the way out, on the server as well as the client. Leaving the server
+# believing sneak is held would silently change the next click someone makes.
+"$CLI" --project "$CONSUMER" eval \
+  "server.getPlayerList().getPlayer(player.getUUID()).isShiftKeyDown() || mc.options.keyShift.isDown()" \
+  | grep -q false || fail "sneak was still held after the use returned"
+echo "--sneak changed what the server did with the click, and let go afterwards"
+"$CLI" --project "$CONSUMER" command "item replace entity @s weapon.mainhand with minecraft:air" >/dev/null
+
 log "Phase 3: shift-clicking a slot moves the stack"
 # A screen decides what a click meant from the real keyboard state, which synthetic input cannot
 # reach, so the operation is named instead. This is the assertion that would have caught the gap:
