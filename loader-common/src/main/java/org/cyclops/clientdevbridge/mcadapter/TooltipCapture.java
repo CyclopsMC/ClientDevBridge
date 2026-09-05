@@ -78,10 +78,21 @@ public class TooltipCapture {
             return result;
         }
 
+        // Three quite different situations used to answer "none" alike, and the third is the one
+        // that misleads: a tooltip a mod paints in its own render is not attached to anything the
+        // game models, so nothing here can reach it -- and reporting that as "no tooltip" says the
+        // opposite of what a screenshot of the same point shows.
         result.add("lines", new JsonArray());
-        result.addProperty("source", "none");
         if (widget != null) {
+            result.addProperty("source", "widgetWithoutTooltip");
             result.addProperty("widget", widget.getClass().getName());
+            result.addProperty("note", "There is a widget here and it has no tooltip attached.");
+        } else {
+            result.addProperty("source", "unmodelled");
+            result.addProperty("note", "Nothing here is a widget or a slot, so there is no tooltip "
+                    + "to read -- but a mod that paints its own tooltip in render() draws one "
+                    + "without registering anything, and that cannot be read from here. Take a "
+                    + "screenshot with the cursor parked at this point to see whether one is drawn.");
         }
         return result;
     }

@@ -177,8 +177,12 @@ public class WorldHandler {
             java.util.concurrent.atomic.AtomicInteger ticks = new java.util.concurrent.atomic.AtomicInteger();
             // What the player is already carrying, so what they gain can be told apart from it.
             java.util.Map<String, Integer> carriedBefore = new java.util.HashMap<>();
+            // And what is already lying around, so the drop report can say what this break produced
+            // rather than what happens to be on the floor near it.
+            java.util.Set<Integer> itemsBefore = new java.util.HashSet<>();
             CompletableFuture<String> before = ClientThread.submit(() -> {
                 carriedBefore.putAll(Mining.carrying());
+                itemsBefore.addAll(Mining.itemEntitiesNear(blockPos));
                 return WorldQuery.block(blockPos, false).get("state").getAsString();
             });
 
@@ -219,7 +223,7 @@ public class WorldHandler {
                         result.addProperty("heldAfter", Interaction.describeHeld(InteractionHand.MAIN_HAND));
                         // The drop is usually the point, and it is a server-side entity that
                         // appears a moment after the block goes.
-                        result.add("drops", Mining.dropsNear(blockPos));
+                        result.add("drops", Mining.dropsNear(blockPos, itemsBefore));
                         // And what the player already picked up, which the search above cannot see.
                         // A drop becomes collectable ten ticks after it spawns, which is exactly
                         // this settle, so standing near the block is enough to have it in hand by
