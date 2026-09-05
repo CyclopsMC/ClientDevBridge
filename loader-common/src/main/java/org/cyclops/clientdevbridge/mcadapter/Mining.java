@@ -57,12 +57,36 @@ public class Mining {
      * entity that arrives a moment after the block goes -- so it is worth reporting rather than
      * leaving the caller to go looking for it.
      */
-    public static JsonArray dropsNear(BlockPos pos) {
-        JsonArray drops = new JsonArray();
-        // Wide enough for a drop that bounced: they are thrown, not placed.
-        AABB around = new AABB(pos).inflate(4.0d);
+    /**
+     * The item entities lying near a block, by entity id.
+     *
+     * Taken before a break so that {@link #dropsNear} can tell what the break produced from what
+     * was already on the ground. Without it, breaking a block in creative -- where nothing can drop
+     * at all -- still reported "dropped" whatever happened to be lying within four blocks, which on
+     * a world whose player starts with an item on the floor is a drop that never existed.
+     */
+    public static java.util.Set<Integer> itemEntitiesNear(BlockPos pos) {
+        java.util.Set<Integer> ids = new java.util.HashSet<>();
         for (ItemEntity entity : ClientState.requireLevel()
-                .getEntitiesOfClass(ItemEntity.class, around)) {
+                .getEntitiesOfClass(ItemEntity.class, searchArea(pos))) {
+            ids.add(entity.getId());
+        }
+        return ids;
+    }
+
+    /** Wide enough for a drop that bounced: they are thrown, not placed. */
+    private static AABB searchArea(BlockPos pos) {
+        return new AABB(pos).inflate(4.0d);
+    }
+
+    public static JsonArray dropsNear(BlockPos pos, java.util.Set<Integer> before) {
+        JsonArray drops = new JsonArray();
+        for (ItemEntity entity : ClientState.requireLevel()
+                .getEntitiesOfClass(ItemEntity.class, searchArea(pos))) {
+            // Only what appeared. An entity that was already there is not this break's doing.
+            if (before.contains(entity.getId())) {
+                continue;
+            }
             com.google.gson.JsonObject drop = Json.object();
             drop.addProperty("item", itemId(entity.getItem()));
             drop.addProperty("count", entity.getItem().getCount());

@@ -19,6 +19,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI="${CDB_CLI:-clientdevbridge}"
 WORK="${CDB_WORK:-$(mktemp -d)}/multipart-consumer"
+# One scratch directory per run, so this suite and the main one can be in flight at once without
+# reading each other's captured output. The client's port is left to the CLI for the same reason.
+RUNTMP="$(mktemp -d "${TMPDIR:-/tmp}/cdb-multipart-XXXXXX")"
 
 log() { printf '\n=== %s ===\n' "$*"; }
 fail() { printf '\nFAILED: %s\n' "$*" >&2; exit 1; }
@@ -113,7 +116,7 @@ rm -rf "$WORK/.clientdevbridge" "$WORK"/loader-*/build "$WORK"/loader-*/runs "$W
 mkdir -p "$WORK/loader-neoforge/extra-mods"
 cp "${JARS[@]}" "$WORK/loader-neoforge/extra-mods/"
 
-cleanup() { "$CLI" --project "$WORK" stop >/dev/null 2>&1 || true; }
+cleanup() { "$CLI" --project "$WORK" stop >/dev/null 2>&1 || true; rm -rf "$RUNTMP"; }
 trap cleanup EXIT
 
 log "Publishing this build to mavenLocal"
@@ -133,22 +136,22 @@ log "A plain block with a GUI still works"
 log "Place parts on two different sides of a cable"
 "$CLI" --project "$WORK" setblock 0 4 2 integrateddynamics:cable
 "$CLI" --project "$WORK" command "item replace entity @s weapon.mainhand with integrateddynamics:part_redstone_writer 1" >/dev/null
-"$CLI" --project "$WORK" use 0 4 2 --face up | tee /tmp/cdb-use-up.txt
-grep -q "up side of 0,4,2: SUCCESS" /tmp/cdb-use-up.txt \
+"$CLI" --project "$WORK" use 0 4 2 --face up | tee "$RUNTMP"/cdb-use-up.txt
+grep -q "up side of 0,4,2: SUCCESS" "$RUNTMP"/cdb-use-up.txt \
   || fail "the click on the up side was not consumed, so no part was placed there"
 
 "$CLI" --project "$WORK" command "item replace entity @s weapon.mainhand with integrateddynamics:part_redstone_reader 1" >/dev/null
-"$CLI" --project "$WORK" use 0 4 2 --face north | tee /tmp/cdb-use-north.txt
-grep -q "north side of 0,4,2: SUCCESS" /tmp/cdb-use-north.txt \
+"$CLI" --project "$WORK" use 0 4 2 --face north | tee "$RUNTMP"/cdb-use-north.txt
+grep -q "north side of 0,4,2: SUCCESS" "$RUNTMP"/cdb-use-north.txt \
   || fail "the click on the north side was not consumed, so no part was placed there"
 
 log "The block description shows both parts"
 # Integrated Dynamics registers no BlockExtractor, so this is the fallback path: the block entity's
 # synced NBT, which carries __partType and __side per part. A mod that registers one gets the same
 # information under blockEntity.details without --nbt.
-"$CLI" --project "$WORK" block 0 4 2 --nbt | tee /tmp/cdb-cable.txt >/dev/null
-grep -q 'redstone_writer' /tmp/cdb-cable.txt || fail "the description does not mention the writer"
-grep -q 'redstone_reader' /tmp/cdb-cable.txt || fail "the description does not mention the reader"
+"$CLI" --project "$WORK" block 0 4 2 --nbt | tee "$RUNTMP"/cdb-cable.txt >/dev/null
+grep -q 'redstone_writer' "$RUNTMP"/cdb-cable.txt || fail "the description does not mention the writer"
+grep -q 'redstone_reader' "$RUNTMP"/cdb-cable.txt || fail "the description does not mention the reader"
 echo "both parts are visible in the block entity NBT"
 
 log "Each side opens its own part GUI"
@@ -183,8 +186,8 @@ echo "quick_move works on a modded container screen too"
 "$CLI" --project "$WORK" close-screen >/dev/null
 
 log "A side with no part reports that, rather than claiming the block has no GUI"
-"$CLI" --project "$WORK" open-gui 0 4 2 --face south > /tmp/cdb-empty-side.txt 2>&1 || true
-grep -q "one per side" /tmp/cdb-empty-side.txt || fail "the empty-side hint is missing"
+"$CLI" --project "$WORK" open-gui 0 4 2 --face south > "$RUNTMP"/cdb-empty-side.txt 2>&1 || true
+grep -q "one per side" "$RUNTMP"/cdb-empty-side.txt || fail "the empty-side hint is missing"
 
 log "stop"
 "$CLI" --project "$WORK" stop

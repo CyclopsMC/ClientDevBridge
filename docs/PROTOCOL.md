@@ -67,7 +67,10 @@ notification is always preferable to a stalled game loop.
 
 - **GUI space** — Minecraft's scaled coordinates. Every widget position in a snapshot is in GUI
   space, and it is the default for every input method, so snapshot output can be fed straight back.
-- **Pixel space** — raw framebuffer pixels. Screenshots are in pixel space.
+- **Pixel space** — raw framebuffer pixels. Screenshots are in pixel space, and so is the size
+  `window.resize` takes. Framebuffer pixels are not the screen coordinates a window manager sizes a
+  window in: on a display that scales windows there are several of the former behind one of the
+  latter, and the bridge converts rather than let the two mean the same number.
 
 Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`, `pixelWidth` and
 `pixelHeight`. Input methods take an optional `space` of `gui` (default) or `pixel`.
@@ -79,7 +82,7 @@ Every snapshot and screenshot result carries `guiScale`, `guiWidth`, `guiHeight`
 | `status` | – | `{ loaded, inWorld, screenClass, tick, fps, dimension, gameDir, glRenderer, player: { pos, yaw, pitch }, ...metrics }` |
 | `screenshot` | `{ region?: {x,y,w,h,space?}, mouse?: {x,y,space?}, scale?, afterTicks? }` | `{ png: base64, width, height, bytes, region?, regionGui?, ...metrics }` |
 | `screen.snapshot` | `{ includeHidden?, maxDepth? }` | see below |
-| `screen.tooltip` | `{ x, y, space? }` | `{ lines: [string], source, slot?, item?, widget? }` |
+| `screen.tooltip` | `{ x, y, space? }` | `{ lines: [string], source, slot?, item?, widget?, note? }` |
 | `screen.open` | `{ blockPos: [x,y,z], approach?, face?, at?: [x,y,z] }` | `{ screenClass, opened, hint? }` |
 | `screen.close` | – | `{ screenClass }` — the screen in focus *after* closing, usually null |
 | `input.mouseMove` | `{ x, y, space? }` | `{ screenClass, mouse }` |
@@ -290,6 +293,17 @@ is in the reply so that invariant is checkable from outside rather than only vis
 `CommandRunner.onServerThread` groups a sequence into one server task, so the server does not tick
 between the commands in it. The determinism setup uses it: otherwise the world ticks a few times
 while half its game rules are still the defaults.
+
+`screen.tooltip`'s `source` says how the answer was reached: `slot`, `widget`, `none` (no screen),
+`widgetWithoutTooltip`, or `unmodelled`. The last one is why the distinction exists — nothing at
+that point is a widget or a slot, and **a mod that paints its own tooltip in `render()` looks
+exactly like that**, because it registers nothing to read. Reporting all of these as "no tooltip"
+said the opposite of what a screenshot of the same point showed. `note` explains the two empty
+cases.
+
+`world.break`'s `drops` lists only item entities that were not there before the break. It used to
+list everything within four blocks, so a break in creative — where nothing can drop — still reported
+a drop, naming whatever happened to be lying on the floor.
 
 `world.entity` is `world.block` for things that are not blocks. It runs through the same command
 source `/data get` does, because abilities, attributes and capability data are on the **server**
