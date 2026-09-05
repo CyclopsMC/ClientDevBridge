@@ -592,6 +592,42 @@ THREAD="$("$CLI" --project "$CONSUMER" --json command "time set noon" \
 "$CLI" --project "$CONSUMER" command "setblock 3 4 3 minecraft:air" >/dev/null
 echo "commands run on $THREAD, and a placement is visible to the command after it"
 
+log "Phase 5f: break reports its own drops, and tooltip says when it cannot read one"
+# Breaking in creative drops nothing. Reporting whatever item entity happened to lie within four
+# blocks meant a creative break still claimed a drop -- and named an unrelated item that had been
+# on the floor since world-reset.
+"$CLI" --project "$CONSUMER" close-screen >/dev/null 2>&1 || true
+"$CLI" --project "$CONSUMER" command "gamemode creative" >/dev/null
+"$CLI" --project "$CONSUMER" teleport 0 4 0 >/dev/null
+# Something on the ground near the block, which the break must not claim credit for.
+"$CLI" --project "$CONSUMER" command "summon item 0 4 4 {Item:{id:\"minecraft:emerald\",count:1}}" >/dev/null
+"$CLI" --project "$CONSUMER" setblock 0 4 2 minecraft:stone >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 5 >/dev/null
+CREATIVE_BREAK="$("$CLI" --project "$CONSUMER" break 0 4 2)"
+grep -q "nothing dropped" <<<"$CREATIVE_BREAK" \
+  || fail "a creative break drops nothing, but it reported: $CREATIVE_BREAK"
+# Negated properly: `grep -qv` succeeds whenever any single line fails to match, so it can never
+# fail and would assert nothing at all.
+if grep -q "emerald" <<<"$CREATIVE_BREAK"; then
+  fail "the break claimed an item that was already lying there: $CREATIVE_BREAK"
+fi
+echo "a creative break reports no drops, and ignores what was already on the floor"
+
+# A point with nothing modelled behind it must not read as "no tooltip": a mod painting its own
+# tooltip there is indistinguishable, and saying there is none contradicts the screenshot.
+# The player's own inventory, rather than placing a block: this suite already put a chest at 8,4,2
+# earlier, and setblock fails when the block is already there -- which aborts the run.
+"$CLI" --project "$CONSUMER" key E >/dev/null
+"$CLI" --project "$CONSUMER" wait --ticks 3 >/dev/null
+UNMODELLED="$("$CLI" --project "$CONSUMER" --json tooltip --at 5,5 \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['source'])")"
+[[ "$UNMODELLED" == "unmodelled" ]] \
+  || fail "an empty point should report 'unmodelled', not '$UNMODELLED'"
+"$CLI" --project "$CONSUMER" tooltip --at 5,5 | grep -qi "cannot be read from here" \
+  || fail "tooltip should explain that a mod-drawn tooltip is unreachable"
+"$CLI" --project "$CONSUMER" close-screen >/dev/null
+echo "tooltip distinguishes 'nothing there' from 'nothing I can read'"
+
 log "logs"
 "$CLI" --project "$CONSUMER" logs --lines 5 --level warn >/dev/null
 

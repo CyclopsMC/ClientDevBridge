@@ -4,6 +4,15 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 14 — what a smoke test of the release found
+
+- `world.break` reports only the drops the break produced. It listed every item entity within four
+  blocks, so a break in creative — where nothing can drop at all — still claimed one, naming
+  whatever was lying on the floor.
+- `screen.tooltip` distinguishes "there is no tooltip here" from "there is nothing here I can
+  read". A tooltip a mod paints in its own `render()` is attached to nothing, so it read as absent
+  while a screenshot of the same point showed it.
+
 ### Phase 13 — smaller things agents asked for
 
 - **The end-to-end suites can run at the same time.** `scripts/e2e.sh` pinned the client to port

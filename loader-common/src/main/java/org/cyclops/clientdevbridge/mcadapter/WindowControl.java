@@ -45,6 +45,7 @@ public class WindowControl {
         }
 
         Minecraft minecraft = Minecraft.getInstance();
+        // The DPI conversion from 1.21, with 26's accessor: Window.getWindow() is handle() here.
         Window window = minecraft.getWindow();
         GLFW.glfwSetWindowSize(window.handle(),
                 screenCoordinates(width, window.getWidth(), window.getScreenWidth()),
