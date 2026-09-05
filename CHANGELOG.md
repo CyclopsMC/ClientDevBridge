@@ -4,6 +4,18 @@ All notable changes to ClientDevBridge are documented here.
 
 ## Unreleased
 
+### Phase 15 — sneak reaches the server
+
+- **`--sneak` had never done anything.** The sneak state was written straight onto the player, but
+  `KeyboardInput.tick()` recomputes it from the sneak binding at the top of every tick, and it runs
+  before the same tick decides whether to tell the server about it — so the write was erased before
+  anything read it, and no packet ever went out. Every block reads sneak on the server, so a
+  sneaking right-click behaved exactly like a plain one: for a wrench, for a vanilla crafting
+  table, for everything. `world.use` now presses the sneak binding, which is what vanilla itself
+  reads, and waits for the server's copy of the player to agree before clicking — the same
+  discipline the command already applied to position and rotation. It waits for the release too, so
+  the command does not hand the next click a player the server still believes is sneaking.
+
 ### Phase 14 — what a smoke test of the release found
 
 - `world.break` reports only the drops the break produced. It listed every item entity within four
