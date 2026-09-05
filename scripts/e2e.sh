@@ -126,6 +126,13 @@ log "Phase 4: pin the window for reproducible screenshots"
 "$CLI" --project "$CONSUMER" resize --width 854 --height 480 --gui-scale 2 | tee /tmp/cdb-resize.txt
 grep -q "854x480px" /tmp/cdb-resize.txt || fail "the window did not resize to 854x480"
 grep -q "scale 2" /tmp/cdb-resize.txt || fail "the GUI scale was not pinned to 2"
+# What the resize reports is the framebuffer, and this is the capture that proves it was not the
+# window: on a display that scales windows -- any Retina Mac, Windows above 100% -- there are more
+# pixels behind an 854x480 window than 854x480, and a client sized by the window renders every
+# screenshot, region and GUI coordinate at twice the size a headless runner produces.
+PINNED_SHOT="$("$CLI" --project "$CONSUMER" screenshot --name e2e-pinned-size)"
+grep -q "^854x480 px" <<< "$PINNED_SHOT" \
+  || fail "the pinned window did not capture 854x480 pixels, but: $(head -1 <<< "$PINNED_SHOT")"
 
 log "Phase 2: create a world and place blocks"
 "$CLI" --project "$CONSUMER" world-reset
