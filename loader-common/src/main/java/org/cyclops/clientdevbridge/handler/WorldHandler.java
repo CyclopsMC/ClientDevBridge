@@ -261,8 +261,8 @@ public class WorldHandler {
                 snapshot.addProperty("blockEntity", WorldQuery.blockEntityData(blockPos));
                 snapshot.addProperty("held", Interaction.describeHeld(Interaction.hand(hand)));
                 snapshot.addProperty("screen", ClientState.screenClass());
-                // Sneak is read by the server, so it is set before the rotation wait rather than
-                // alongside the click, or the click carries the old state.
+                // Sneak is read by the server, so it is pressed before the rotation wait rather
+                // than alongside the click, or the click carries the old state.
                 if (sneak) {
                     Interaction.setSneaking(true);
                 }
@@ -271,10 +271,10 @@ public class WorldHandler {
 
             java.util.concurrent.atomic.AtomicReference<String> outcome =
                     new java.util.concurrent.atomic.AtomicReference<>("NONE");
-            return snapshotBefore.thenCompose(before -> ScreenHandler
-                    .aimAndClick(aim, approach,
+            return snapshotBefore.thenCompose(before -> awaitSneak(sneak, true)
+                    .thenCompose(ignored -> ScreenHandler.aimAndClick(aim, approach,
                             () -> outcome.set(Interaction.describeResult(
-                                    Interaction.useOn(aim, Interaction.hand(hand)))))
+                                    Interaction.useOn(aim, Interaction.hand(hand))))))
                     // The result of a use is a server round trip away: a placed part, a changed
                     // block and an opened screen all arrive later than the click returns.
                     .thenCompose(ignored -> McAdapter.tickClock().afterTicks(5))
@@ -282,6 +282,13 @@ public class WorldHandler {
                         if (sneak) {
                             Interaction.setSneaking(false);
                         }
+                        return null;
+                    }))
+                    // The release is waited on too, so the command leaves the server's copy of the
+                    // player the way it found it. Returning while the server still believes sneak
+                    // is held would hand the next click someone else's state.
+                    .thenCompose(ignored -> awaitSneak(sneak, false))
+                    .thenCompose(ignored -> ClientThread.submit(() -> {
                         JsonObject result = Json.object();
                         result.add("pos", Json.arrayOfNumbers(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
                         result.addProperty("face", aim.face().getName());
@@ -328,6 +335,18 @@ public class WorldHandler {
 
     private static Path templatesRoot(Path projectDir) {
         return projectDir.resolve("clientdevbridge").resolve("templates");
+    }
+
+    /**
+     * Waits for the server's copy of the player to agree about sneak, or returns at once when the
+     * click does not involve sneak at all.
+     */
+    private static CompletableFuture<?> awaitSneak(boolean sneak, boolean held) {
+        if (!sneak) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return McAdapter.tickClock().awaitCondition(() -> Interaction.serverSeesSneaking(held),
+                Interaction.sneakTimeoutTicks(), null);
     }
 
     private static CompletableFuture<Boolean> awaitOutOfWorld() {
