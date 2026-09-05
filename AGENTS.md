@@ -171,7 +171,9 @@ the newest build that this branch's NeoForge can actually load, and skips rather
 there is none or Modrinth is unreachable.
 
 **Both must pass before committing.** Run the loader you did not touch too: the two have diverged
-in behaviour before, and only the end-to-end run catches it.
+in behaviour before, and only the end-to-end run catches it. They can run at the same time: neither
+the client's port nor the scratch files a suite captures into are shared any more, and the CLI
+hands each client the first free port.
 
 ## The protocol is a contract
 
